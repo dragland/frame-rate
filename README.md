@@ -1,6 +1,6 @@
 # 🎬 Frame Rate
 
-Movie night voting app - search films, build lists, vote on what to watch.
+Movie night voting app - ranked choice voting for movie night.
 
 ## Quick Start
 
