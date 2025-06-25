@@ -69,8 +69,8 @@ export default function Home() {
     return (
       <main className="min-h-screen flex items-center justify-center p-8">
         <div className="max-w-md w-full">
-          <h1 className="text-4xl font-bold text-center mb-8">🎬 Frame Rate</h1>
-          <p className="text-center text-gray-600 mb-8">
+          <h1 className="text-4xl font-bold text-center mb-8 dark:text-white">🎬 Frame Rate</h1>
+          <p className="text-center text-gray-600 dark:text-gray-300 mb-8">
             Choose movies for your group movie night
           </p>
           <form onSubmit={handleLogin} className="space-y-4">
@@ -79,7 +79,7 @@ export default function Home() {
               placeholder="Enter your username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
             <button
@@ -108,8 +108,8 @@ export default function Home() {
       <div className="flex-1 p-4 md:p-8 md:mr-80">
         <div className="max-w-4xl mx-auto">
           <div className="flex justify-between items-center mb-8">
-            <h1 className="text-3xl font-bold">🎬 Frame Rate</h1>
-            <div className="text-gray-600">
+            <h1 className="text-3xl font-bold dark:text-white">🎬 Frame Rate</h1>
+            <div className="text-gray-600 dark:text-gray-300">
               Welcome, {username}!
             </div>
           </div>
@@ -121,7 +121,7 @@ export default function Home() {
               placeholder="Search for movies..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -147,16 +147,16 @@ export default function Home() {
 
       {/* Sidebar */}
       <div className={`
-        fixed md:relative top-0 right-0 h-full w-80 bg-white shadow-xl border-l z-40
+        fixed md:relative top-0 right-0 h-full w-80 bg-white dark:bg-gray-800 shadow-xl border-l dark:border-gray-700 z-40
         transform transition-transform duration-300 ease-in-out
         ${sidebarOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
       `}>
         <div className="p-6 h-full overflow-y-auto">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold">My List ({myMovies.length})</h2>
+            <h2 className="text-xl font-bold dark:text-white">My List ({myMovies.length})</h2>
             <button
               onClick={() => setSidebarOpen(false)}
-              className="md:hidden text-gray-500 hover:text-gray-700"
+              className="md:hidden text-gray-500 dark:text-gray-400 hover:text-gray-700 hover:dark:text-gray-200"
             >
               ✕
             </button>
@@ -173,7 +173,7 @@ export default function Home() {
               />
             ))}
             {myMovies.length === 0 && (
-              <p className="text-gray-500 text-center py-8">
+              <p className="text-gray-500 dark:text-gray-400 text-center py-8">
                 Search and add movies to your list
               </p>
             )}
@@ -217,9 +217,9 @@ function MovieCard({ movie, onAdd, onRemove, isInList }: MovieCardProps) {
         </div>
       </div>
       <div className="p-4">
-        <h3 className="font-bold text-lg mb-1 line-clamp-2">{movie.title}</h3>
-        <p className="text-gray-600 text-sm mb-2">{year}</p>
-        <p className="text-gray-700 text-sm mb-4 line-clamp-3">{movie.overview}</p>
+        <h3 className="font-bold text-lg mb-1 line-clamp-2 dark:text-white">{movie.title}</h3>
+        <p className="text-gray-600 dark:text-gray-300 text-sm mb-2">{year}</p>
+        <p className="text-gray-700 dark:text-gray-300 text-sm mb-4 line-clamp-3">{movie.overview}</p>
         <div className="flex space-x-2">
           {isInList ? (
             <button
@@ -291,13 +291,13 @@ function DraggableMovieItem({ movie, index, onRemove, onMove }: DraggableMovieIt
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       className={`
-        flex items-center space-x-3 p-3 bg-gray-50 rounded-lg cursor-move transition-all
+        flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-move transition-all
         ${isDragging ? 'opacity-50' : ''}
-        ${draggedOver ? 'bg-blue-100 border-2 border-blue-300' : ''}
-        hover:bg-gray-100
+        ${draggedOver ? 'bg-blue-100 dark:bg-blue-900 border-2 border-blue-300 dark:border-blue-600' : ''}
+        hover:bg-gray-100 hover:dark:bg-gray-600
       `}
     >
-      <div className="text-gray-400 text-sm">⋮⋮</div>
+      <div className="text-gray-400 dark:text-gray-500 text-sm">⋮⋮</div>
       <Image
         src={getImageUrl(movie.poster_path)}
         alt={movie.title}
@@ -306,14 +306,14 @@ function DraggableMovieItem({ movie, index, onRemove, onMove }: DraggableMovieIt
         className="rounded flex-shrink-0"
       />
       <div className="flex-1 min-w-0">
-        <div className="font-semibold text-sm truncate">{movie.title}</div>
-        <div className="text-xs text-gray-500">
+        <div className="font-semibold text-sm truncate dark:text-white">{movie.title}</div>
+        <div className="text-xs text-gray-500 dark:text-gray-400">
           {year} • ⭐ {movie.vote_average.toFixed(1)}
         </div>
       </div>
       <button
         onClick={onRemove}
-        className="text-red-500 hover:text-red-700 flex-shrink-0"
+        className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 flex-shrink-0"
       >
         ✕
       </button>
