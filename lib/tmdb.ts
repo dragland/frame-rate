@@ -1,6 +1,8 @@
 // Get your API key from https://www.themoviedb.org/settings/api
 // Add TMDB_API_KEY=your_key_here to your .env.local file
 
+import { LetterboxdRating } from './letterboxd';
+
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w500';
 
 export interface Movie {
@@ -13,6 +15,7 @@ export interface Movie {
   vote_average: number;
   vote_count: number;
   genre_ids: number[];
+  letterboxdRating?: LetterboxdRating | null;
 }
 
 export interface SearchResponse {

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { searchMovies, Movie, getImageUrl } from '../lib/tmdb';
+import { getLetterboxdRating } from '../lib/letterboxd';
 import Image from 'next/image';
 
 export default function Home() {
@@ -29,7 +30,13 @@ export default function Home() {
     setIsLoading(true);
     try {
       const results = await searchMovies(query);
-      setSearchResults(results.results.slice(0, 5)); // Show top 5 results
+      const moviesWithLetterboxd = await Promise.all(
+        results.results.slice(0, 5).map(async (movie) => {
+          const letterboxdRating = await getLetterboxdRating(movie.id);
+          return { ...movie, letterboxdRating };
+        })
+      );
+      setSearchResults(moviesWithLetterboxd);
     } catch (error) {
       console.error('Search failed:', error);
       setSearchResults([]);
@@ -212,15 +219,56 @@ function MovieCard({ movie, onAdd, onRemove, isInList }: MovieCardProps) {
           height={750}
           className="w-full h-64 object-cover"
         />
-        <div className="absolute top-2 right-2 bg-black bg-opacity-70 text-white px-2 py-1 rounded text-sm">
-          ⭐ {movie.vote_average.toFixed(1)}
+        <div className="absolute top-2 right-2">
+          {movie.letterboxdRating ? (
+            <a
+              href={movie.letterboxdRating.filmUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-blue-600 bg-opacity-90 text-white px-2 py-1 rounded text-sm flex items-center hover:bg-blue-700 transition-colors space-x-1"
+            >
+              <span>⭐ {movie.letterboxdRating.rating.toFixed(1)}</span>
+              <span>{Math.round(movie.vote_average * 10)}%</span>
+            </a>
+          ) : (
+            <div className="bg-blue-600 bg-opacity-90 text-white px-2 py-1 rounded text-sm flex items-center">
+              {Math.round(movie.vote_average * 10)}%
+            </div>
+          )}
         </div>
       </div>
       <div className="p-4">
         <h3 className="font-bold text-lg mb-1 line-clamp-2 dark:text-white">{movie.title}</h3>
         <p className="text-gray-600 dark:text-gray-300 text-sm mb-2">{year}</p>
+        <div className="flex items-center space-x-4 mb-2 text-sm">
+          {movie.letterboxdRating ? (
+            <a 
+              href={movie.letterboxdRating.filmUrl} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
+            >
+              ⭐ {movie.letterboxdRating.rating.toFixed(1)}
+            </a>
+          ) : (
+            <span className="text-gray-400 dark:text-gray-500">⭐ N/A</span>
+          )}
+          <span className="text-yellow-600 dark:text-yellow-400">
+            {Math.round(movie.vote_average * 10)}%
+          </span>
+        </div>
         <p className="text-gray-700 dark:text-gray-300 text-sm mb-4 line-clamp-3">{movie.overview}</p>
-        <div className="flex space-x-2">
+        <div className="space-y-2">
+          {movie.letterboxdRating && (
+            <a
+              href={movie.letterboxdRating.filmUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700 transition-colors block text-center"
+            >
+              Letterboxd
+            </a>
+          )}
           {isInList ? (
             <button
               onClick={onRemove}
@@ -231,7 +279,7 @@ function MovieCard({ movie, onAdd, onRemove, isInList }: MovieCardProps) {
           ) : (
             <button
               onClick={onAdd}
-              className="w-full bg-green-500 text-white py-2 px-4 rounded hover:bg-green-600 transition-colors"
+              className="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition-colors"
             >
               Add to List
             </button>
@@ -307,8 +355,22 @@ function DraggableMovieItem({ movie, index, onRemove, onMove }: DraggableMovieIt
       />
       <div className="flex-1 min-w-0">
         <div className="font-semibold text-sm truncate dark:text-white">{movie.title}</div>
-        <div className="text-xs text-gray-500 dark:text-gray-400">
-          {year} • ⭐ {movie.vote_average.toFixed(1)}
+        <div className="text-xs text-gray-500 dark:text-gray-400 space-x-2">
+          <span>{year}</span>
+          {movie.letterboxdRating ? (
+            <a
+              href={movie.letterboxdRating.filmUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300"
+              onClick={(e) => e.stopPropagation()}
+            >
+              ⭐ {movie.letterboxdRating.rating.toFixed(1)}
+            </a>
+          ) : (
+            <span className="text-gray-400 dark:text-gray-500">⭐ N/A</span>
+          )}
+          <span className="text-yellow-600 dark:text-yellow-400">{Math.round(movie.vote_average * 10)}%</span>
         </div>
       </div>
       <button
