@@ -193,39 +193,41 @@ export default function Home() {
         onClick={() => setSidebarOpen(!sidebarOpen)}
         className="md:hidden fixed top-4 right-4 z-50 bg-blue-500 text-white p-2 rounded-lg shadow-lg"
       >
-        {sidebarOpen ? '✕' : `🎞️ ${myMovies.length}`}
+        {sidebarOpen ? '✕' : (
+          <div className="flex items-center space-x-1">
+            <span>🍿 {myMovies.length}</span>
+            {sessionMode === 'host' && sessionCode && (
+              <span className="text-xs font-mono bg-green-600 px-1 rounded">
+                {sessionCode}
+              </span>
+            )}
+          </div>
+        )}
       </button>
 
       {/* Main Content */}
       <div className="flex-1 p-4 md:p-8 md:pr-4">
         <div>
           <div className="flex justify-between items-center mb-8">
-            <h1 className="text-3xl font-bold dark:text-white">🎞️ Frame Rate</h1>
             <div className="flex items-center space-x-4">
+              <h1 className="text-3xl font-bold dark:text-white">🎞️ Frame Rate</h1>
               {sessionMode === 'host' && sessionCode && (
-                <div className="flex items-center space-x-2 bg-green-100 dark:bg-green-900 px-4 py-2 rounded-lg">
-                  <span className="text-sm text-gray-600 dark:text-gray-300">Session:</span>
-                  <code className="font-mono text-lg font-bold text-green-700 dark:text-green-300 tracking-wider">
+                <div className="hidden sm:flex items-center space-x-2 bg-green-100 dark:bg-green-900 px-3 py-1 rounded-full">
+                  <code className="font-mono text-sm font-bold text-green-700 dark:text-green-300 tracking-wider">
                     {sessionCode}
                   </code>
                   <button
                     onClick={copySessionCode}
-                    className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm transition-colors"
+                    className="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 transition-colors"
                     title="Copy session code"
                   >
-                    📋 Share
+                    📎
                   </button>
                 </div>
               )}
-              <div className="text-gray-600 dark:text-gray-300">
-                Welcome, <span className="font-mono text-orange-600 dark:text-orange-400">{username}</span>!
-                {sessionMode === 'guest' && (
-                  <span className="text-sm ml-2 text-blue-600 dark:text-blue-400">(Guest)</span>
-                )}
-                {sessionMode === 'host' && (
-                  <span className="text-sm ml-2 text-green-600 dark:text-green-400">(Host)</span>
-                )}
-              </div>
+            </div>
+            <div className="hidden md:block font-mono text-orange-600 dark:text-orange-400">
+              {username}
             </div>
           </div>
 
@@ -270,7 +272,7 @@ export default function Home() {
       `}>
         <div className="p-6 h-full overflow-y-auto">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold dark:text-white">Movie Night ({myMovies.length})</h2>
+            <h2 className="text-xl font-bold dark:text-white">🍿 Movie Night ({myMovies.length})</h2>
             <button
               onClick={() => setSidebarOpen(false)}
               className="md:hidden text-gray-500 dark:text-gray-400 hover:text-gray-700 hover:dark:text-gray-200"
@@ -279,7 +281,7 @@ export default function Home() {
             </button>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-3 mb-6">
             {myMovies.map((movie, index) => (
               <DraggableMovieItem
                 key={movie.id}
@@ -295,6 +297,17 @@ export default function Home() {
               </p>
             )}
           </div>
+          
+          <button 
+            disabled={myMovies.length === 0}
+            className={`w-full p-4 rounded-lg font-semibold transition-colors ${
+              myMovies.length > 0 
+                ? 'bg-blue-500 hover:bg-blue-600 text-white' 
+                : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+            }`}
+          >
+            🔒 Vote
+          </button>
         </div>
       </div>
 
