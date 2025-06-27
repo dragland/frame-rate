@@ -19,6 +19,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedDescriptions, setExpandedDescriptions] = useState<Set<number>>(new Set());
+  const [justCopied, setJustCopied] = useState(false);
 
   const generateSessionCode = () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -52,7 +53,8 @@ export default function Home() {
   const copySessionCode = async () => {
     try {
       await navigator.clipboard.writeText(sessionCode);
-      // Could add a toast notification here later
+      setJustCopied(true);
+      setTimeout(() => setJustCopied(false), 2000);
     } catch (err) {
       console.error('Failed to copy session code:', err);
     }
@@ -212,18 +214,22 @@ export default function Home() {
             <div className="flex items-center space-x-4">
               <h1 className="text-3xl font-bold dark:text-white">🎞️ Frame Rate</h1>
               {sessionMode === 'host' && sessionCode && (
-                <div className="hidden sm:flex items-center space-x-2 bg-green-100 dark:bg-green-900 px-3 py-1 rounded-full">
+                <button
+                  onClick={copySessionCode}
+                  className={`hidden sm:flex items-center space-x-2 px-3 py-1 rounded-full transition-colors cursor-pointer ${
+                    justCopied 
+                      ? 'bg-green-200 dark:bg-green-700' 
+                      : 'bg-green-100 dark:bg-green-900 hover:bg-green-200 dark:hover:bg-green-800'
+                  }`}
+                  title={justCopied ? 'Copied!' : 'Click to copy session code'}
+                >
                   <code className="font-mono text-sm font-bold text-green-700 dark:text-green-300 tracking-wider">
                     {sessionCode}
                   </code>
-                  <button
-                    onClick={copySessionCode}
-                    className="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 transition-colors"
-                    title="Copy session code"
-                  >
-                    📎
-                  </button>
-                </div>
+                  <span className="text-green-600 dark:text-green-400">
+                    {justCopied ? '✓' : '📎'}
+                  </span>
+                </button>
               )}
             </div>
             <div className="hidden md:block font-mono text-orange-600 dark:text-orange-400">
