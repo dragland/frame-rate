@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: frame-rate
+    env: node
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TMDB_API_KEY
+        sync: false  # You'll set this in Render dashboard 
