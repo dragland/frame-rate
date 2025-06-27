@@ -13,6 +13,7 @@ export default function Home() {
   const [myMovies, setMyMovies] = useState<Movie[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [expandedDescriptions, setExpandedDescriptions] = useState<Set<number>>(new Set());
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,6 +66,18 @@ export default function Home() {
     return myMovies.some(m => m.id === movieId);
   };
 
+  const toggleDescription = (movieId: number) => {
+    setExpandedDescriptions(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(movieId)) {
+        newSet.delete(movieId);
+      } else {
+        newSet.add(movieId);
+      }
+      return newSet;
+    });
+  };
+
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       handleSearch(searchQuery);
@@ -108,7 +121,7 @@ export default function Home() {
         onClick={() => setSidebarOpen(!sidebarOpen)}
         className="md:hidden fixed top-4 right-4 z-50 bg-blue-500 text-white p-2 rounded-lg shadow-lg"
       >
-        {sidebarOpen ? '✕' : `📋 ${myMovies.length}`}
+        {sidebarOpen ? '✕' : `🎬 ${myMovies.length}`}
       </button>
 
       {/* Main Content */}
@@ -146,6 +159,8 @@ export default function Home() {
                 onAdd={() => addToMyList(movie)}
                 onRemove={() => removeFromMyList(movie.id)}
                 isInList={isInMyList(movie.id)}
+                isExpanded={expandedDescriptions.has(movie.id)}
+                onToggleDescription={() => toggleDescription(movie.id)}
               />
             ))}
           </div>
@@ -160,7 +175,7 @@ export default function Home() {
       `}>
         <div className="p-6 h-full overflow-y-auto">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold dark:text-white">My List ({myMovies.length})</h2>
+            <h2 className="text-xl font-bold dark:text-white">Movie Night ({myMovies.length})</h2>
             <button
               onClick={() => setSidebarOpen(false)}
               className="md:hidden text-gray-500 dark:text-gray-400 hover:text-gray-700 hover:dark:text-gray-200"
@@ -181,7 +196,7 @@ export default function Home() {
             ))}
             {myMovies.length === 0 && (
               <p className="text-gray-500 dark:text-gray-400 text-center py-8">
-                Search and add movies to your list
+                Search and add movies for movie night
               </p>
             )}
           </div>
@@ -204,20 +219,22 @@ interface MovieCardProps {
   onAdd: () => void;
   onRemove: () => void;
   isInList: boolean;
+  isExpanded: boolean;
+  onToggleDescription: () => void;
 }
 
-function MovieCard({ movie, onAdd, onRemove, isInList }: MovieCardProps) {
+function MovieCard({ movie, onAdd, onRemove, isInList, isExpanded, onToggleDescription }: MovieCardProps) {
   const year = movie.release_date?.split('-')[0] || 'Unknown';
 
   return (
     <div className="movie-card">
-      <div className="relative">
+      <div className="relative flex-shrink-0 aspect-[2/3] bg-gray-100 dark:bg-gray-800">
         <Image
           src={getImageUrl(movie.poster_path)}
           alt={movie.title}
           width={500}
           height={750}
-          className="w-full h-64 object-cover"
+          className="w-full h-full object-contain"
         />
         <div className="absolute top-2 right-2">
           {movie.letterboxdRating ? (
@@ -237,54 +254,61 @@ function MovieCard({ movie, onAdd, onRemove, isInList }: MovieCardProps) {
           )}
         </div>
       </div>
-      <div className="p-4">
+      <div className="p-4 flex flex-col h-full">
         <h3 className="font-bold text-lg mb-1 line-clamp-2 dark:text-white">{movie.title}</h3>
         <p className="text-gray-600 dark:text-gray-300 text-sm mb-2">{year}</p>
-        <div className="flex items-center space-x-4 mb-2 text-sm">
-          {movie.letterboxdRating ? (
-            <a 
-              href={movie.letterboxdRating.filmUrl} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
-            >
-              ⭐ {movie.letterboxdRating.rating.toFixed(1)}
-            </a>
-          ) : (
-            <span className="text-gray-400 dark:text-gray-500">⭐ N/A</span>
-          )}
-          <span className="text-yellow-600 dark:text-yellow-400">
-            {Math.round(movie.vote_average * 10)}%
-          </span>
+        <div className="flex items-center justify-between mb-2 text-sm">
+          <div className="flex items-center space-x-4">
+            {movie.letterboxdRating ? (
+              <a 
+                href={movie.letterboxdRating.filmUrl} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
+              >
+                ⭐ {movie.letterboxdRating.rating.toFixed(1)}
+              </a>
+            ) : (
+              <span className="text-gray-400 dark:text-gray-500">⭐ N/A</span>
+            )}
+            <span className="text-yellow-600 dark:text-yellow-400">
+              {Math.round(movie.vote_average * 10)}%
+            </span>
+          </div>
+          <button
+            onClick={isInList ? onRemove : onAdd}
+            className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold transition-colors ${
+              isInList 
+                ? 'bg-gray-500 hover:bg-gray-600' 
+                : 'bg-blue-500 hover:bg-blue-600'
+            }`}
+          >
+            {isInList ? '−' : '+'}
+          </button>
         </div>
-        <p className="text-gray-700 dark:text-gray-300 text-sm mb-4 line-clamp-3">{movie.overview}</p>
-        <div className="space-y-2">
-          {movie.letterboxdRating && (
-            <a
-              href={movie.letterboxdRating.filmUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700 transition-colors block text-center"
-            >
-              Letterboxd
-            </a>
-          )}
-          {isInList ? (
-            <button
-              onClick={onRemove}
-              className="w-full bg-red-500 text-white py-2 px-4 rounded hover:bg-red-600 transition-colors"
-            >
-              Remove
-            </button>
-          ) : (
-            <button
-              onClick={onAdd}
-              className="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition-colors"
-            >
-              Add to List
+        <div 
+          onClick={onToggleDescription}
+          className="cursor-pointer flex-grow"
+        >
+          <p className={`text-gray-700 dark:text-gray-300 text-sm ${isExpanded ? '' : 'line-clamp-3'}`}>
+            {movie.overview}
+          </p>
+          {movie.overview && movie.overview.length > 150 && (
+            <button className="text-blue-500 hover:text-blue-600 text-xs mt-1">
+              {isExpanded ? 'Show less' : 'Show more'}
             </button>
           )}
         </div>
+        {movie.letterboxdRating && (
+          <a
+            href={movie.letterboxdRating.filmUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block mt-3 bg-green-600 text-white py-2 px-4 rounded text-sm hover:bg-green-700 transition-colors text-center"
+          >
+            Letterboxd
+          </a>
+        )}
       </div>
     </div>
   );
@@ -375,9 +399,9 @@ function DraggableMovieItem({ movie, index, onRemove, onMove }: DraggableMovieIt
       </div>
       <button
         onClick={onRemove}
-        className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 flex-shrink-0"
+        className="w-6 h-6 rounded-full bg-gray-500 hover:bg-gray-600 text-white text-sm flex items-center justify-center flex-shrink-0 transition-colors"
       >
-        ✕
+        −
       </button>
     </div>
   );

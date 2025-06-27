@@ -28,7 +28,7 @@ body {
 }
 
 .movie-card {
-  @apply bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden transition-transform hover:scale-105;
+  @apply bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden transition-transform hover:scale-105 flex flex-col h-full;
 }
 
 .movie-grid {
