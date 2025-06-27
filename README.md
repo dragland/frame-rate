@@ -1,55 +1,48 @@
-# 🎬 Frame Rate
+# 🎞️ Frame Rate
 
-Movie night voting app - ranked choice voting for movie night.
+Movie night voting app with ranked choice voting and group watch parties.
+
+## Core Features
+
+- **Movie Search**: TMDB integration with Letterboxd ratings
+- **Ranked Lists**: Drag & drop movie preferences
+- **Watch Parties**: Host/join sessions with 4-letter codes
+- **Mobile Responsive**: Touch-friendly interface
 
 ## Quick Start
 
-1. **Install dependencies:**
+1. Get TMDB API key from [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api)
+
+2. Create `.env.local`:
+   ```
+   TMDB_API_KEY=your_key_here
+   ```
+
+3. Run:
    ```bash
    npm install
-   ```
-
-2. **Get TMDB API key:**
-   - Sign up at [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api)
-   - Create `.env.local`:
-     ```
-     TMDB_API_KEY=your_api_key_here
-     ```
-
-3. **Run locally:**
-   ```bash
    npm run dev
    ```
-   → Open [http://localhost:3000](http://localhost:3000)
+   → Open [localhost:3000](http://localhost:3000)
 
-**Live demo:** [https://frame-rate.onrender.com](https://frame-rate.onrender.com)
+## How It Works
 
-## Structure
+**Start a Movie Night**: Enter letterboxd username and start building lists
+**Join a Watch Party**: Host creates session code, others join to build lists
+**Vote & Enjoy**: Lock in ranked preferences (group voting coming soon)
+
+## Implementation
 
 ```
 app/
-├── api/search/route.ts    # TMDB API proxy (keeps key secure)
-├── page.tsx               # Main app (search, lists, drag-drop)
+├── api/search/route.ts    # TMDB proxy + Letterboxd scraping
+├── page.tsx               # Main app with session state
 ├── layout.tsx             # Root layout
-└── globals.css            # Tailwind + custom styles
+└── globals.css            # Tailwind styles
 
 lib/
-└── tmdb.ts                # TMDB types & utilities
+├── tmdb.ts                # Movie search & types
+└── letterboxd.ts          # Rating scraper
 ```
 
-## Features
-
-- **Search**: TMDB API integration, 5 results per query
-- **Lists**: Personal movie lists with drag-and-drop reordering
-- **Responsive**: Desktop sidebar, mobile collapsible
-- **Secure**: API key stays server-side
-
-## Deploy
-
-**Render:**
-- Build: `npm install && npm run build`
-- Start: `npm start`
-- Add `TMDB_API_KEY` environment variable
-
-**Current**: Single-user experience  
-**Next**: Group sessions, voting, Redis 
+Built with Next.js + Tailwind. Deploy to Render with `TMDB_API_KEY`.
