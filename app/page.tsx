@@ -125,8 +125,8 @@ export default function Home() {
       </button>
 
       {/* Main Content */}
-      <div className="flex-1 p-4 md:p-8 md:mr-80">
-        <div className="max-w-4xl mx-auto">
+      <div className="flex-1 p-4 md:p-8 md:pr-4">
+        <div>
           <div className="flex justify-between items-center mb-8">
             <h1 className="text-3xl font-bold dark:text-white">🎬 Frame Rate</h1>
             <div className="text-gray-600 dark:text-gray-300">
@@ -169,7 +169,7 @@ export default function Home() {
 
       {/* Sidebar */}
       <div className={`
-        fixed md:relative top-0 right-0 h-full w-80 bg-white dark:bg-gray-800 shadow-xl border-l dark:border-gray-700 z-40
+        fixed md:relative top-0 right-0 h-full w-96 bg-white dark:bg-gray-800 shadow-xl border-l dark:border-gray-700 z-40
         transform transition-transform duration-300 ease-in-out
         ${sidebarOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
       `}>
@@ -369,7 +369,11 @@ function DraggableMovieItem({ movie, index, onRemove, onMove }: DraggableMovieIt
         hover:bg-gray-100 hover:dark:bg-gray-600
       `}
     >
-      <div className="text-gray-400 dark:text-gray-500 text-sm">⋮⋮</div>
+      <div className="text-gray-400 dark:text-gray-500 flex flex-col space-y-0.5">
+        <div className="w-1.5 h-0.5 bg-current rounded-full"></div>
+        <div className="w-1.5 h-0.5 bg-current rounded-full"></div>
+        <div className="w-1.5 h-0.5 bg-current rounded-full"></div>
+      </div>
       <Image
         src={getImageUrl(movie.poster_path)}
         alt={movie.title}
