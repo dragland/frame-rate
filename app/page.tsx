@@ -5,9 +5,14 @@ import { searchMovies, Movie, getImageUrl } from '../lib/tmdb';
 import { getLetterboxdRating } from '../lib/letterboxd';
 import Image from 'next/image';
 
+type SessionMode = 'solo' | 'host' | 'guest';
+
 export default function Home() {
   const [username, setUsername] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [sessionMode, setSessionMode] = useState<SessionMode>('solo');
+  const [sessionCode, setSessionCode] = useState('');
+  const [joinCode, setJoinCode] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Movie[]>([]);
   const [myMovies, setMyMovies] = useState<Movie[]>([]);
@@ -15,10 +20,41 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedDescriptions, setExpandedDescriptions] = useState<Set<number>>(new Set());
 
-  const handleLogin = (e: React.FormEvent) => {
+  const generateSessionCode = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    let result = '';
+    for (let i = 0; i < 4; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  };
+
+  const handleStartMovieNight = (e: React.FormEvent) => {
     e.preventDefault();
     if (username.trim()) {
+      const code = generateSessionCode();
+      setSessionCode(code);
+      setSessionMode('host');
       setIsLoggedIn(true);
+    }
+  };
+
+  const handleJoinWatchParty = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (username.trim() && joinCode.trim()) {
+      setSessionMode('guest');
+      setIsLoggedIn(true);
+    }
+  };
+
+
+
+  const copySessionCode = async () => {
+    try {
+      await navigator.clipboard.writeText(sessionCode);
+      // Could add a toast notification here later
+    } catch (err) {
+      console.error('Failed to copy session code:', err);
     }
   };
 
@@ -87,28 +123,64 @@ export default function Home() {
 
   if (!isLoggedIn) {
     return (
-      <main className="min-h-screen flex items-center justify-center p-8">
+      <main className="min-h-screen flex items-center justify-center p-8 bg-gradient-to-br from-slate-50 to-blue-50 dark:from-gray-900 dark:to-gray-800">
         <div className="max-w-md w-full">
-          <h1 className="text-4xl font-bold text-center mb-8 dark:text-white">🎬 Frame Rate</h1>
-          <p className="text-center text-gray-600 dark:text-gray-300 mb-8">
-            Choose movies for your group movie night
-          </p>
-          <form onSubmit={handleLogin} className="space-y-4">
+          <h1 className="text-4xl font-bold text-center mb-8 dark:text-white text-gray-800">🎞️ Frame Rate</h1>
+          
+          {/* Letterboxd-style username input */}
+          <div className="mb-6">
             <input
               type="text"
-              placeholder="Enter your username"
+              placeholder="letterboxd username"
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full p-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+              className="w-full p-4 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-600 dark:text-white rounded-lg focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400 font-mono text-center lowercase placeholder:text-gray-400 placeholder:normal-case"
               required
             />
-            <button
-              type="submit"
-              className="w-full bg-blue-500 text-white p-3 rounded-lg hover:bg-blue-600 transition-colors"
+          </div>
+
+          <div className="space-y-4">
+            <form onSubmit={handleStartMovieNight}>
+              <button
+                type="submit"
+                className="w-full bg-green-600 hover:bg-green-700 text-white p-4 rounded-lg transition-colors font-semibold"
+              >
+                🎬 Start Movie Night
+              </button>
+            </form>
+            
+            <form onSubmit={handleJoinWatchParty} className="space-y-3">
+              <input
+                type="text"
+                placeholder="Enter 4-letter code"
+                value={joinCode}
+                onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                maxLength={4}
+                className="w-full p-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-center font-mono text-lg tracking-wider"
+                required
+              />
+              <button
+                type="submit"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-lg transition-colors font-semibold"
+              >
+                🍿 Join Watch Party
+              </button>
+            </form>
+          </div>
+          
+          <div className="mt-12">
+            <a 
+              href="https://github.com/dragland" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="w-full flex items-center justify-center space-x-3 p-4 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors font-semibold"
             >
-              Join Session
-            </button>
-          </form>
+              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+              </svg>
+              <span>@dragland</span>
+            </a>
+          </div>
         </div>
       </main>
     );
@@ -121,16 +193,39 @@ export default function Home() {
         onClick={() => setSidebarOpen(!sidebarOpen)}
         className="md:hidden fixed top-4 right-4 z-50 bg-blue-500 text-white p-2 rounded-lg shadow-lg"
       >
-        {sidebarOpen ? '✕' : `🎬 ${myMovies.length}`}
+        {sidebarOpen ? '✕' : `🎞️ ${myMovies.length}`}
       </button>
 
       {/* Main Content */}
       <div className="flex-1 p-4 md:p-8 md:pr-4">
         <div>
           <div className="flex justify-between items-center mb-8">
-            <h1 className="text-3xl font-bold dark:text-white">🎬 Frame Rate</h1>
-            <div className="text-gray-600 dark:text-gray-300">
-              Welcome, {username}!
+            <h1 className="text-3xl font-bold dark:text-white">🎞️ Frame Rate</h1>
+            <div className="flex items-center space-x-4">
+              {sessionMode === 'host' && sessionCode && (
+                <div className="flex items-center space-x-2 bg-green-100 dark:bg-green-900 px-4 py-2 rounded-lg">
+                  <span className="text-sm text-gray-600 dark:text-gray-300">Session:</span>
+                  <code className="font-mono text-lg font-bold text-green-700 dark:text-green-300 tracking-wider">
+                    {sessionCode}
+                  </code>
+                  <button
+                    onClick={copySessionCode}
+                    className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm transition-colors"
+                    title="Copy session code"
+                  >
+                    📋 Share
+                  </button>
+                </div>
+              )}
+              <div className="text-gray-600 dark:text-gray-300">
+                Welcome, <span className="font-mono text-orange-600 dark:text-orange-400">{username}</span>!
+                {sessionMode === 'guest' && (
+                  <span className="text-sm ml-2 text-blue-600 dark:text-blue-400">(Guest)</span>
+                )}
+                {sessionMode === 'host' && (
+                  <span className="text-sm ml-2 text-green-600 dark:text-green-400">(Host)</span>
+                )}
+              </div>
             </div>
           </div>
 
