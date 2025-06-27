@@ -46,3 +46,4 @@ lib/
 ```
 
 Built with Next.js + Tailwind. Deploy to Render with `TMDB_API_KEY`.
+
