@@ -136,10 +136,10 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
   const renderVetoingPhase = () => (
     <div>
       <div className="text-center mb-6">
-        <div className="text-4xl mb-2">❌</div>
+        <div className="text-4xl mb-2">💀</div>
         <h3 className="text-xl font-semibold mb-2 dark:text-white">Veto Phase</h3>
         <p className="text-gray-600 dark:text-gray-400 text-sm">
-          Choose one movie to eliminate from the final vote
+          Choose one movie to eliminate from the voting pool
         </p>
         
         {/* Veto progress */}
@@ -213,7 +213,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
                   </div>
                 </div>
                 <button className="text-red-500 hover:text-red-700 px-3 py-1 rounded font-semibold">
-                  ❌ Veto
+                  💀 Veto
                 </button>
               </div>
             ))}
@@ -397,7 +397,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
       <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900 rounded-lg">
         <h4 className="font-semibold mb-2 dark:text-white">How it works:</h4>
         <ol className="text-left text-sm text-gray-600 dark:text-gray-400 space-y-1">
-          <li>1. Rankings get locked - no more changes</li>
+          <li>1. Only your top 2 picks enter the voting pool</li>
           <li>2. Everyone picks one movie to eliminate</li>
           <li>3. Final rankings determine the winner</li>
         </ol>

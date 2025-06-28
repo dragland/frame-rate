@@ -9,7 +9,8 @@ export const canStartVoting = (session: Session): boolean => {
 export const getAllMovies = (session: Session): Movie[] => {
   const movieMap = new Map<number, Movie>();
   session.participants.forEach(participant => {
-    participant.movies.forEach(movie => {
+    // Only take the first 2 movies from each participant for the voting pool
+    participant.movies.slice(0, 2).forEach(movie => {
       movieMap.set(movie.id, movie);
     });
   });
