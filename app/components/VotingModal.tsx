@@ -250,25 +250,42 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
                 onDragStart={(e) => handleDragStart(e, movie.id)}
                 onDragOver={handleDragOver}
                 onDrop={(e) => handleDrop(e, index)}
-                className="flex items-center space-x-3 p-3 border dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-move transition-colors"
+                className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 cursor-move transition-all"
               >
-                <div className="text-sm font-semibold text-gray-500 dark:text-gray-400 w-6">
-                  #{index + 1}
+                <div className="text-gray-400 dark:text-gray-500 flex flex-col space-y-0.5">
+                  <div className="w-1.5 h-0.5 bg-current rounded-full"></div>
+                  <div className="w-1.5 h-0.5 bg-current rounded-full"></div>
+                  <div className="w-1.5 h-0.5 bg-current rounded-full"></div>
                 </div>
-                <div className="relative w-12 h-18 flex-shrink-0">
-                  <Image
-                    src={getImageUrl(movie.poster_path)}
-                    alt={movie.title}
-                    fill
-                    className="object-cover rounded"
-                    sizes="48px"
-                  />
-                </div>
+                <Image
+                  src={getImageUrl(movie.poster_path)}
+                  alt={movie.title}
+                  width={40}
+                  height={60}
+                  className="rounded flex-shrink-0"
+                />
                 <div className="flex-1 min-w-0">
-                  <h4 className="font-medium truncate dark:text-white">{movie.title}</h4>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {movie.release_date?.split('-')[0]}
-                  </p>
+                  <div className="font-semibold text-sm truncate dark:text-white">{movie.title}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 space-x-2">
+                    <span>{movie.release_date?.split('-')[0]}</span>
+                    {movie.letterboxdRating ? (
+                      <a
+                        href={movie.letterboxdRating.filmUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        ⭐ {movie.letterboxdRating.rating.toFixed(1)}
+                      </a>
+                    ) : (
+                      <span className="text-gray-400 dark:text-gray-500">⭐ N/A</span>
+                    )}
+                    <span className="text-yellow-600 dark:text-yellow-400">{Math.round(movie.vote_average * 10)}%</span>
+                  </div>
+                </div>
+                <div className="text-sm font-semibold text-gray-500 dark:text-gray-400">
+                  #{index + 1}
                 </div>
               </div>
             ))}
@@ -404,8 +421,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold dark:text-white">Movie Night Voting</h2>
+          <div className="flex justify-end mb-6">
             <button
               onClick={onClose}
               className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
