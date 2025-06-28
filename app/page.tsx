@@ -528,7 +528,7 @@ function Home() {
             >
               {sessionData?.votingPhase === 'ranking' && canVote && '🔒 Lock Votes'}
               {sessionData?.votingPhase === 'locked' && '🔒 Votes Locked'}
-              {sessionData?.votingPhase === 'vetoing' && '🔒 Voting in Progress'}
+              {sessionData?.votingPhase === 'vetoing' && '🔒 Join Voting'}
               {sessionData?.votingPhase === 'finalRanking' && '🔒 Final Rankings'}
               {sessionData?.votingPhase === 'results' && '🏆 See Results'}
               {sessionData?.votingPhase === 'ranking' && !canVote && 'Need 2+ movies each'}

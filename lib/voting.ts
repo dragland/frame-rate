@@ -89,7 +89,18 @@ export const calculateRankedChoiceWinner = (session: Session): VotingResults => 
 
     // Find movie with fewest votes to eliminate
     const minVotes = Math.min(...Object.values(votes));
-    const eliminated = remainingMovies.find(movie => votes[movie.id] === minVotes)!;
+    const moviesWithMinVotes = remainingMovies.filter(movie => votes[movie.id] === minVotes);
+    
+    // Handle ties by random selection
+    let eliminated: Movie;
+    if (moviesWithMinVotes.length > 1) {
+      console.log(`⚖️ Tie for elimination between: ${moviesWithMinVotes.map(m => m.title).join(', ')} (${minVotes} votes each)`);
+      const randomIndex = Math.floor(Math.random() * moviesWithMinVotes.length);
+      eliminated = moviesWithMinVotes[randomIndex];
+      console.log(`🎲 Random elimination: ${eliminated.title}`);
+    } else {
+      eliminated = moviesWithMinVotes[0];
+    }
     
     rounds.push({ round, eliminated, votes });
     eliminatedMovies.push(eliminated);

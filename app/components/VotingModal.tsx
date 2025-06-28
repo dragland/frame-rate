@@ -164,35 +164,48 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
           <div className="text-sm text-gray-500 dark:text-gray-400">
             Waiting for others to complete their vetoes...
           </div>
+          {vetoedMovies.length > 0 && (
+            <div className="mt-4 text-xs text-gray-500 dark:text-gray-400">
+              Vetoed: {vetoedMovies.map(m => m.title).join(', ')}
+            </div>
+          )}
         </div>
       ) : (
-        <div className="space-y-3 max-h-96 overflow-y-auto">
-          {allMovies.map((movie) => (
-            <div
-              key={movie.id}
-              className="flex items-center space-x-3 p-3 border dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
-              onClick={() => handleVetoMovie(movie.id)}
-            >
-              <div className="relative w-12 h-18 flex-shrink-0">
-                <Image
-                  src={getImageUrl(movie.poster_path)}
-                  alt={movie.title}
-                  fill
-                  className="object-cover rounded"
-                  sizes="48px"
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h4 className="font-medium truncate dark:text-white">{movie.title}</h4>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {movie.release_date?.split('-')[0]}
-                </p>
-              </div>
-              <button className="text-red-500 hover:text-red-700 px-3 py-1 rounded">
-                ❌ Veto
-              </button>
+        <div>
+          {vetoedMovies.length > 0 && (
+            <div className="mb-4 p-2 bg-red-50 dark:bg-red-900 rounded text-xs text-red-700 dark:text-red-300">
+              Already vetoed: {vetoedMovies.map(m => m.title).join(', ')}
             </div>
-          ))}
+          )}
+          
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+            {allMovies.filter(movie => !vetoedMovies.some(v => v.id === movie.id)).map((movie) => (
+              <div
+                key={movie.id}
+                className="flex items-center space-x-3 p-3 border dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
+                onClick={() => handleVetoMovie(movie.id)}
+              >
+                <div className="relative w-12 h-18 flex-shrink-0">
+                  <Image
+                    src={getImageUrl(movie.poster_path)}
+                    alt={movie.title}
+                    fill
+                    className="object-cover rounded"
+                    sizes="48px"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-medium truncate dark:text-white">{movie.title}</h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {movie.release_date?.split('-')[0]}
+                  </p>
+                </div>
+                <button className="text-red-500 hover:text-red-700 px-3 py-1 rounded">
+                  ❌ Veto
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -202,10 +215,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
     <div>
       <div className="text-center mb-6">
         <div className="text-4xl mb-2">🎯</div>
-        <h3 className="text-xl font-semibold mb-2 dark:text-white">Final Rankings</h3>
-        <p className="text-gray-600 dark:text-gray-400 text-sm">
-          Now rank the remaining movies in your final order of preference
-        </p>
+        <h3 className="text-xl font-semibold mb-2 dark:text-white">Rank final nominations</h3>
         
         {/* Final ranking progress */}
         <div className="mt-4 text-sm">
@@ -232,13 +242,6 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
         </div>
       ) : (
         <div>
-          <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900 rounded-lg text-sm">
-            <div className="font-medium mb-1 dark:text-white">💡 Drag to reorder</div>
-            <div className="text-gray-600 dark:text-gray-400">
-              These are the movies left after vetoing. Drag them to your final preferred order.
-            </div>
-          </div>
-          
           <div className="space-y-2 max-h-96 overflow-y-auto mb-4">
             {finalMovies.map((movie, index) => (
               <div
@@ -267,7 +270,6 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
                     {movie.release_date?.split('-')[0]}
                   </p>
                 </div>
-                <div className="text-gray-400">⋮⋮</div>
               </div>
             ))}
           </div>
@@ -291,9 +293,9 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
 
     return (
       <div className="text-center">
-        <div className="text-6xl mb-4">🏆</div>
+        <div className="text-6xl mb-4">🥇</div>
         <h3 className="text-2xl font-bold mb-4 text-green-600 dark:text-green-400">
-          We're Watching: {winner.title}
+          {winner.title}
         </h3>
         
         <div className="mb-6">
@@ -305,6 +307,23 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
               className="object-cover rounded-lg shadow-lg"
               sizes="192px"
             />
+            <div className="absolute top-2 right-2">
+              {winner.letterboxdRating ? (
+                <a
+                  href={winner.letterboxdRating.filmUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-blue-600 bg-opacity-90 text-white px-2 py-1 rounded text-sm flex items-center hover:bg-blue-700 transition-colors space-x-1"
+                >
+                  <span>⭐ {winner.letterboxdRating.rating.toFixed(1)}</span>
+                  <span>{Math.round(winner.vote_average * 10)}%</span>
+                </a>
+              ) : (
+                <div className="bg-blue-600 bg-opacity-90 text-white px-2 py-1 rounded text-sm flex items-center">
+                  {Math.round(winner.vote_average * 10)}%
+                </div>
+              )}
+            </div>
           </div>
           <p className="text-gray-600 dark:text-gray-400 text-sm max-w-md mx-auto">
             {winner.overview}
