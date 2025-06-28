@@ -16,9 +16,12 @@ if (process.env.NODE_ENV === 'development') {
 
 const getRedisClient = () => {
   const redisUrl = process.env.REDIS_URL || process.env.REDISCLOUD_URL;
+  const nodeEnv = process.env.NODE_ENV;
+  
+  console.log(`🔍 Environment: NODE_ENV=${nodeEnv}, REDIS_URL=${redisUrl ? 'configured' : 'missing'}`);
   
   // If no Redis URL in development, use in-memory storage
-  if (!redisUrl && process.env.NODE_ENV === 'development') {
+  if (!redisUrl && nodeEnv === 'development') {
     if (!globalThis.__frameRateHasWarnedAboutMemory) {
       console.log('⚠️  No Redis URL found. Using in-memory storage for development.');
       console.log('💡 To test with Redis: docker run -d -p 6379:6379 redis:alpine');
@@ -32,17 +35,22 @@ const getRedisClient = () => {
   }
   
   if (!redisUrl) {
-    throw new Error('Redis URL not configured. Set REDIS_URL environment variable.');
+    throw new Error(`Redis URL not configured. Set REDIS_URL environment variable. (NODE_ENV: ${nodeEnv})`);
   }
   
   if (!redis) {
+    console.log(`🚀 Connecting to Redis: ${redisUrl.replace(/\/\/.*@/, '//***@')}`);
     redis = new Redis(redisUrl, {
       maxRetriesPerRequest: 3,
       lazyConnect: true,
     });
     
     redis.on('error', (err: Error) => {
-      console.error('Redis connection error:', err);
+      console.error('❌ Redis connection error:', err);
+    });
+    
+    redis.on('connect', () => {
+      console.log('✅ Redis connected successfully');
     });
   }
   
