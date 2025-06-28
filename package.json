@@ -4,6 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:redis": "npm run redis:start && REDIS_URL=redis://localhost:6379 npm run dev",
+    "redis:start": "docker run -d --name frame-rate-redis -p 6379:6379 redis:alpine || docker start frame-rate-redis",
+    "redis:stop": "docker stop frame-rate-redis",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
@@ -12,12 +15,15 @@
     "@types/node": "^20.0.0",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
+    "ioredis": "^5.3.2",
     "next": "14.0.0",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
+    "@types/uuid": "^9.0.7",
     "autoprefixer": "^10.4.0",
     "eslint": "^8.0.0",
     "eslint-config-next": "14.0.0",
