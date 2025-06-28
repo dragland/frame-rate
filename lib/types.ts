@@ -1,10 +1,11 @@
 import { Movie } from './tmdb';
 
-export type VotingPhase = 'ranking' | 'locked' | 'vetoing' | 'results';
+export type VotingPhase = 'ranking' | 'locked' | 'vetoing' | 'finalRanking' | 'results';
 
 export interface SessionParticipant {
   username: string;
   movies: Movie[];
+  finalMovies?: Movie[]; // Rankings after vetoing phase
   joinedAt: Date;
   hasVoted?: boolean;
   vetoedMovieId?: number;
@@ -56,6 +57,12 @@ export interface VetoMovieRequest {
   code: string;
   username: string;
   movieId: number;
+}
+
+export interface UpdateFinalMoviesRequest {
+  code: string;
+  username: string;
+  movies: Movie[];
 }
 
 export interface SessionResponse {

@@ -415,6 +415,28 @@ function Home() {
             </button>
           </div>
 
+          {/* Mobile copy pill in sidebar */}
+          {sessionCode && sessionMode !== 'solo' && (
+            <div className="md:hidden mb-4">
+              <button
+                onClick={copySessionCode}
+                className={`w-full flex items-center justify-center space-x-2 px-3 py-2 rounded-lg transition-colors cursor-pointer ${
+                  justCopied 
+                    ? 'bg-green-200 dark:bg-green-700' 
+                    : 'bg-green-100 dark:bg-green-900 hover:bg-green-200 dark:hover:bg-green-800'
+                }`}
+                title={justCopied ? 'Copied link!' : 'Click to copy shareable link'}
+              >
+                <code className="font-mono text-sm font-bold text-green-700 dark:text-green-300 tracking-wider">
+                  {sessionCode}
+                </code>
+                <span className="text-green-600 dark:text-green-400">
+                  {justCopied ? '✓' : '📎'}
+                </span>
+              </button>
+            </div>
+          )}
+
           <div className="space-y-3 mb-6">
             {myMovies.map((movie, index) => (
               <DraggableMovieItem
@@ -504,9 +526,10 @@ function Home() {
                   : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
               }`}
             >
-              {sessionData?.votingPhase === 'ranking' && canVote && '🔒 Start Voting'}
-              {sessionData?.votingPhase === 'locked' && '🔒 Voting Locked'}
-              {sessionData?.votingPhase === 'vetoing' && '❌ Veto Phase'}
+              {sessionData?.votingPhase === 'ranking' && canVote && '🔒 Lock Votes'}
+              {sessionData?.votingPhase === 'locked' && '🔒 Votes Locked'}
+              {sessionData?.votingPhase === 'vetoing' && '🔒 Voting in Progress'}
+              {sessionData?.votingPhase === 'finalRanking' && '🔒 Final Rankings'}
               {sessionData?.votingPhase === 'results' && '🏆 See Results'}
               {sessionData?.votingPhase === 'ranking' && !canVote && 'Need 2+ movies each'}
             </button>

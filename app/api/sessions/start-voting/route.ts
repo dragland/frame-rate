@@ -43,14 +43,15 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
     
-    // Update session to vetoing phase
+    // Update session to vetoing phase (skip locked phase)
     session.votingPhase = 'vetoing';
     session.isVotingOpen = true;
     
-    // Reset veto status
+    // Reset veto status and final rankings
     session.participants.forEach(p => {
       p.hasVoted = false;
       p.vetoedMovieId = undefined;
+      p.finalMovies = undefined;
     });
     
     await redis.setex(

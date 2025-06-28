@@ -56,10 +56,15 @@ export async function POST(request: NextRequest) {
     const allVetoed = session.participants.every(p => p.hasVoted);
     
     if (allVetoed) {
-      // Calculate final results
-      session.votingPhase = 'results';
-      session.votingResults = calculateRankedChoiceWinner(session);
-      console.log(`🏆 Voting complete for session ${code}. Winner: ${session.votingResults.winner.title}`);
+      // Transition to final ranking phase instead of results
+      session.votingPhase = 'finalRanking';
+      
+      // Reset finalMovies for all participants
+      session.participants.forEach(p => {
+        p.finalMovies = undefined;
+      });
+      
+      console.log(`🎯 All vetoes complete for session ${code}. Moving to final ranking phase.`);
     }
     
     await redis.setex(

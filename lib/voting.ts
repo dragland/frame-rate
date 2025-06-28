@@ -1,5 +1,5 @@
 import { Movie } from './tmdb';
-import { Session, SessionParticipant, VotingResults, StartVotingRequest, VetoMovieRequest } from './types';
+import { Session, SessionParticipant, VotingResults, StartVotingRequest, VetoMovieRequest, UpdateFinalMoviesRequest } from './types';
 
 export const canStartVoting = (session: Session): boolean => {
   return session.participants.every(p => p.movies.length >= 2) && 
@@ -25,6 +25,15 @@ export const getVetoedMovies = (session: Session): Movie[] => {
   return allMovies.filter(movie => vetoedIds.includes(movie.id));
 };
 
+export const getRemainingMovies = (session: Session): Movie[] => {
+  const allMovies = getAllMovies(session);
+  const vetoedMovieIds = session.participants
+    .filter(p => p.vetoedMovieId)
+    .map(p => p.vetoedMovieId!);
+  
+  return allMovies.filter(movie => !vetoedMovieIds.includes(movie.id));
+};
+
 export const calculateRankedChoiceWinner = (session: Session): VotingResults => {
   const allMovies = getAllMovies(session);
   const vetoedMovieIds = session.participants
@@ -37,6 +46,10 @@ export const calculateRankedChoiceWinner = (session: Session): VotingResults => 
   const rounds: VotingResults['rounds'] = [];
   let round = 1;
 
+  console.log(`🗳️ Starting ranked choice voting:`);
+  console.log(`📊 Total movies: ${allMovies.length}, Vetoed: ${vetoedMovieIds.length}, Remaining: ${remainingMovies.length}`);
+  console.log(`🎬 Remaining movies:`, remainingMovies.map(m => m.title));
+
   while (remainingMovies.length > 1) {
     const votes: { [movieId: number]: number } = {};
     
@@ -46,8 +59,13 @@ export const calculateRankedChoiceWinner = (session: Session): VotingResults => 
     });
 
     // Count first-choice votes for remaining movies
+    // Use finalMovies if available (after final ranking), otherwise fall back to original movies
     session.participants.forEach(participant => {
-      const firstChoice = participant.movies.find(movie => 
+      const movieList = participant.finalMovies && participant.finalMovies.length > 0 
+        ? participant.finalMovies 
+        : participant.movies;
+      
+      const firstChoice = movieList.find(movie => 
         remainingMovies.some(rm => rm.id === movie.id)
       );
       if (firstChoice) {
@@ -85,6 +103,15 @@ export const calculateRankedChoiceWinner = (session: Session): VotingResults => 
     eliminatedMovies,
     rounds
   };
+};
+
+export const updateFinalMovies = async (code: string, username: string, movies: Movie[]) => {
+  const response = await fetch('/api/sessions/final-movies', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, username, movies } as UpdateFinalMoviesRequest),
+  });
+  return response.json();
 };
 
 export const startVoting = async (code: string, username: string) => {
