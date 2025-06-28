@@ -18,8 +18,6 @@ const getRedisClient = () => {
   const redisUrl = process.env.REDIS_URL || process.env.REDISCLOUD_URL;
   const nodeEnv = process.env.NODE_ENV;
   
-  console.log(`🔍 Environment: NODE_ENV=${nodeEnv}, REDIS_URL=${redisUrl ? 'configured' : 'missing'}`);
-  
   // If no Redis URL in development, use in-memory storage
   if (!redisUrl && nodeEnv === 'development') {
     if (!globalThis.__frameRateHasWarnedAboutMemory) {
@@ -39,7 +37,7 @@ const getRedisClient = () => {
   }
   
   if (!redis) {
-    console.log(`🚀 Connecting to Redis: ${redisUrl.replace(/\/\/.*@/, '//***@')}`);
+    console.log(`🚀 Redis: Connecting to ${redisUrl.replace(/\/\/.*@/, '//***@')}`);
     redis = new Redis(redisUrl, {
       maxRetriesPerRequest: 3,
       lazyConnect: true,
@@ -50,7 +48,7 @@ const getRedisClient = () => {
     });
     
     redis.on('connect', () => {
-      console.log('✅ Redis connected successfully');
+      console.log('✅ Redis: Connected successfully');
     });
   }
   
