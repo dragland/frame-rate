@@ -27,6 +27,19 @@ export async function PUT(request: NextRequest) {
     
     const session: Session = JSON.parse(sessionData);
     
+    // Migration: Add votingPhase if missing (for backward compatibility)
+    if (!session.votingPhase) {
+      session.votingPhase = 'ranking';
+    }
+    
+    // Prevent updates if voting is locked
+    if (session.votingPhase !== 'ranking') {
+      return NextResponse.json<SessionResponse>({ 
+        success: false, 
+        error: 'Cannot update movies during voting process' 
+      }, { status: 400 });
+    }
+    
     // Find participant
     const participantIndex = session.participants.findIndex(
       p => p.username === username.trim()

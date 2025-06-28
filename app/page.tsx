@@ -6,6 +6,8 @@ import { searchMovies, Movie, getImageUrl } from '../lib/tmdb';
 import { getLetterboxdRating } from '../lib/letterboxd';
 import { createSession, joinSession, updateMovies, getSession, debounce } from '../lib/session';
 import { Session } from '../lib/types';
+import { canStartVoting, startVoting } from '../lib/voting';
+import VotingModal from './components/VotingModal';
 import Image from 'next/image';
 
 type SessionMode = 'solo' | 'host' | 'guest';
@@ -26,6 +28,7 @@ function Home() {
   const [justCopied, setJustCopied] = useState(false);
   const [sessionData, setSessionData] = useState<Session | null>(null);
   const [sessionError, setSessionError] = useState<string>('');
+  const [showVotingModal, setShowVotingModal] = useState(false);
 
   const handleStartMovieNight = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -124,6 +127,36 @@ function Home() {
     }, 1000),
     [sessionData, sessionMode, username]
   );
+
+  const handleVoteClick = async () => {
+    if (sessionData && sessionMode !== 'solo') {
+      if (sessionData.votingPhase === 'ranking') {
+        // Start voting immediately
+        setIsLoading(true);
+        try {
+          const response = await startVoting(sessionData.code, username);
+          if (response.success) {
+            setSessionData(response.session);
+            setShowVotingModal(true);
+          } else {
+            setSessionError(response.error || 'Failed to start voting');
+          }
+        } catch (error) {
+          setSessionError('Failed to start voting');
+        }
+        setIsLoading(false);
+      } else {
+        setShowVotingModal(true);
+      }
+    }
+  };
+
+  const handleSessionUpdate = (updatedSession: Session) => {
+    setSessionData(updatedSession);
+  };
+
+  const canVote = sessionData && sessionMode !== 'solo' && sessionData.participants.length >= 2 ? canStartVoting(sessionData) : false;
+  const isVotingLocked = sessionData?.votingPhase === 'locked' || sessionData?.votingPhase === 'vetoing' || sessionData?.votingPhase === 'results';
 
   const addToMyList = (movie: Movie) => {
     if (!myMovies.find(m => m.id === movie.id)) {
@@ -391,6 +424,7 @@ function Home() {
                 onRemove={() => removeFromMyList(movie.id)}
                 onMove={moveMovie}
                 showDivider={index === 1 && myMovies.length > 2}
+                isVotingLocked={isVotingLocked}
               />
             ))}
             {myMovies.length === 0 && (
@@ -459,16 +493,24 @@ function Home() {
             </div>
           )}
           
-          <button 
-            disabled={myMovies.length === 0}
-            className={`w-full p-4 rounded-lg font-semibold transition-colors ${
-              myMovies.length > 0 
-                ? 'bg-blue-500 hover:bg-blue-600 text-white' 
-                : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-            }`}
-          >
-            🔒 Vote
-          </button>
+          {/* Only show vote button for group sessions */}
+          {sessionData && sessionMode !== 'solo' && sessionData.participants.length >= 2 && (
+            <button 
+              onClick={handleVoteClick}
+              disabled={!canVote}
+              className={`w-full p-4 rounded-lg font-semibold transition-colors ${
+                canVote
+                  ? (sessionData?.votingPhase === 'ranking' ? 'bg-blue-500 hover:bg-blue-600 text-white' : 'bg-green-500 hover:bg-green-600 text-white')
+                  : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+              }`}
+            >
+              {sessionData?.votingPhase === 'ranking' && canVote && '🔒 Start Voting'}
+              {sessionData?.votingPhase === 'locked' && '🔒 Voting Locked'}
+              {sessionData?.votingPhase === 'vetoing' && '❌ Veto Phase'}
+              {sessionData?.votingPhase === 'results' && '🏆 See Results'}
+              {sessionData?.votingPhase === 'ranking' && !canVote && 'Need 2+ movies each'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -477,6 +519,16 @@ function Home() {
         <div
           className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-30"
           onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Voting Modal */}
+      {showVotingModal && sessionData && (
+        <VotingModal
+          session={sessionData}
+          username={username}
+          onClose={() => setShowVotingModal(false)}
+          onSessionUpdate={handleSessionUpdate}
         />
       )}
     </main>
@@ -589,13 +641,18 @@ interface DraggableMovieItemProps {
   onRemove: () => void;
   onMove: (fromIndex: number, toIndex: number) => void;
   showDivider?: boolean;
+  isVotingLocked?: boolean;
 }
 
-function DraggableMovieItem({ movie, index, onRemove, onMove, showDivider }: DraggableMovieItemProps) {
+function DraggableMovieItem({ movie, index, onRemove, onMove, showDivider, isVotingLocked = false }: DraggableMovieItemProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [draggedOver, setDraggedOver] = useState(false);
 
   const handleDragStart = (e: React.DragEvent) => {
+    if (isVotingLocked) {
+      e.preventDefault();
+      return;
+    }
     setIsDragging(true);
     e.dataTransfer.setData('text/plain', index.toString());
   };
@@ -605,6 +662,7 @@ function DraggableMovieItem({ movie, index, onRemove, onMove, showDivider }: Dra
   };
 
   const handleDragOver = (e: React.DragEvent) => {
+    if (isVotingLocked) return;
     e.preventDefault();
     setDraggedOver(true);
   };
@@ -614,6 +672,7 @@ function DraggableMovieItem({ movie, index, onRemove, onMove, showDivider }: Dra
   };
 
   const handleDrop = (e: React.DragEvent) => {
+    if (isVotingLocked) return;
     e.preventDefault();
     setDraggedOver(false);
     const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
@@ -627,17 +686,19 @@ function DraggableMovieItem({ movie, index, onRemove, onMove, showDivider }: Dra
   return (
     <>
       <div
-        draggable
+        draggable={!isVotingLocked}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={`
-          flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-move transition-all
+          flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg transition-all
+          ${isVotingLocked ? 'cursor-default' : 'cursor-move'}
           ${isDragging ? 'opacity-50' : ''}
           ${draggedOver ? 'bg-blue-100 dark:bg-blue-900 border-2 border-blue-300 dark:border-blue-600' : ''}
-          hover:bg-gray-100 hover:dark:bg-gray-600
+          ${isVotingLocked ? '' : 'hover:bg-gray-100 hover:dark:bg-gray-600'}
+          ${isVotingLocked ? 'opacity-70' : ''}
         `}
       >
         <div className="text-gray-400 dark:text-gray-500 flex flex-col space-y-0.5">
@@ -673,8 +734,13 @@ function DraggableMovieItem({ movie, index, onRemove, onMove, showDivider }: Dra
           </div>
         </div>
         <button
-          onClick={onRemove}
-          className="w-6 h-6 rounded-full bg-gray-500 hover:bg-gray-600 text-white text-sm flex items-center justify-center flex-shrink-0 transition-colors"
+          onClick={isVotingLocked ? undefined : onRemove}
+          disabled={isVotingLocked}
+          className={`w-6 h-6 rounded-full text-white text-sm flex items-center justify-center flex-shrink-0 transition-colors ${
+            isVotingLocked 
+              ? 'bg-gray-400 cursor-not-allowed' 
+              : 'bg-gray-500 hover:bg-gray-600'
+          }`}
         >
           −
         </button>

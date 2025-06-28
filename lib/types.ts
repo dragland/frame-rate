@@ -1,9 +1,23 @@
 import { Movie } from './tmdb';
 
+export type VotingPhase = 'ranking' | 'locked' | 'vetoing' | 'results';
+
 export interface SessionParticipant {
   username: string;
   movies: Movie[];
   joinedAt: Date;
+  hasVoted?: boolean;
+  vetoedMovieId?: number;
+}
+
+export interface VotingResults {
+  winner: Movie;
+  eliminatedMovies: Movie[];
+  rounds: {
+    round: number;
+    eliminated?: Movie;
+    votes: { [movieId: number]: number };
+  }[];
 }
 
 export interface Session {
@@ -14,6 +28,8 @@ export interface Session {
   expiresAt: Date; // Sessions expire after 24 hours
   isVotingOpen: boolean;
   maxParticipants: number;
+  votingPhase: VotingPhase;
+  votingResults?: VotingResults;
 }
 
 export interface CreateSessionRequest {
@@ -29,6 +45,17 @@ export interface UpdateMoviesRequest {
   code: string;
   username: string;
   movies: Movie[];
+}
+
+export interface StartVotingRequest {
+  code: string;
+  username: string;
+}
+
+export interface VetoMovieRequest {
+  code: string;
+  username: string;
+  movieId: number;
 }
 
 export interface SessionResponse {

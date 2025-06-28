@@ -30,6 +30,11 @@ export async function GET(
     
     const session: Session = JSON.parse(sessionData);
     
+    // Migration: Add votingPhase if missing (for backward compatibility)
+    if (!session.votingPhase) {
+      session.votingPhase = 'ranking';
+    }
+    
     return NextResponse.json<SessionResponse>({ 
       success: true, 
       session 

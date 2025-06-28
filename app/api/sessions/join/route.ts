@@ -29,7 +29,12 @@ export async function POST(request: NextRequest) {
     
     const session: Session = JSON.parse(sessionData);
     
-        const trimmedUsername = username.trim();
+    // Migration: Add votingPhase if missing (for backward compatibility)
+    if (!session.votingPhase) {
+      session.votingPhase = 'ranking';
+    }
+    
+    const trimmedUsername = username.trim();
     
     // Check if username already exists (allow rejoining)
     const existingParticipant = session.participants.find(p => p.username === trimmedUsername);

@@ -48,6 +48,7 @@ export async function POST(request: NextRequest) {
       expiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000), // 24 hours
       isVotingOpen: false,
       maxParticipants: 8,
+      votingPhase: 'ranking',
     };
     
     // Store session in Redis with TTL
