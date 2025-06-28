@@ -29,23 +29,28 @@ export async function POST(request: NextRequest) {
     
     const session: Session = JSON.parse(sessionData);
     
-    // Check if session is full
+        const trimmedUsername = username.trim();
+    
+    // Check if username already exists (allow rejoining)
+    const existingParticipant = session.participants.find(p => p.username === trimmedUsername);
+    
+    if (existingParticipant) {
+      // User is rejoining - just return success with existing session
+      console.log(`🔄 ${trimmedUsername} rejoined session ${code}`);
+      return NextResponse.json<SessionResponse>({ 
+        success: true, 
+        session 
+      });
+    }
+
+    // Check if session is full (only for new participants)
     if (session.participants.length >= session.maxParticipants) {
       return NextResponse.json<SessionResponse>({ 
         success: false, 
         error: 'Session is full' 
       }, { status: 400 });
     }
-    
-    // Check if username is already taken
-    const trimmedUsername = username.trim();
-    if (session.participants.some(p => p.username === trimmedUsername)) {
-      return NextResponse.json<SessionResponse>({ 
-        success: false, 
-        error: 'Username already taken in this session' 
-      }, { status: 400 });
-    }
-    
+
     // Add new participant
     session.participants.push({
       username: trimmedUsername,
