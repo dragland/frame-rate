@@ -19,6 +19,8 @@
 html, body {
   height: 100%;
   overflow-x: hidden;
+  overscroll-behavior: none; /* Prevent pull-to-refresh and overscroll bounce */
+  -webkit-overflow-scrolling: touch;
 }
 
 body {
@@ -31,6 +33,13 @@ body {
     rgb(var(--background-start-rgb));
   min-height: 100vh;
   min-height: 100dvh; /* Use dynamic viewport height for better mobile support */
+}
+
+/* Prevent mobile zoom on input focus */
+@media screen and (max-width: 768px) {
+  input[type="text"] {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
 }
 
 .movie-card {

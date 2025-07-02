@@ -242,13 +242,13 @@ function Home() {
 
   if (!isLoggedIn) {
     return (
-      <main className="h-screen h-dvh flex items-center justify-center p-4 sm:p-8 bg-gradient-to-br from-slate-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 overflow-hidden">
-        <div className="max-w-md w-full flex flex-col justify-center sm:justify-center justify-start pt-16 sm:pt-0 min-h-0 max-h-full overflow-hidden">
-          <div className="text-center mb-6 sm:mb-8">
+      <main className="h-screen h-dvh flex items-start sm:items-center justify-center p-4 sm:p-8 bg-gradient-to-br from-slate-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 overflow-hidden overscroll-none">
+        <div className="max-w-md w-full flex flex-col justify-start sm:justify-center pt-4 sm:pt-0 pb-4 sm:pb-0 min-h-0 max-h-full overflow-hidden">
+          <div className="text-center mb-4 sm:mb-8">
             <h1 className="text-3xl sm:text-4xl font-bold dark:text-white text-gray-800">🎞️ Frame Rate</h1>
           </div>
           
-          <div className="space-y-4 sm:space-y-6 flex-shrink-0">
+          <div className="space-y-3 sm:space-y-6 flex-shrink-0">
             {/* Username input */}
             <div>
               <input
@@ -267,13 +267,13 @@ function Home() {
               </div>
             )}
 
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               {!isFromJoinUrl && (
                 <form onSubmit={handleStartMovieNight}>
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white p-4 rounded-lg transition-colors font-semibold"
+                    className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white p-3 sm:p-4 rounded-lg transition-colors font-semibold"
                   >
                     {isLoading ? '⏳ Creating...' : '🎬 Start Movie Night'}
                   </button>
@@ -293,7 +293,7 @@ function Home() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white p-4 rounded-lg transition-colors font-semibold"
+                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white p-3 sm:p-4 rounded-lg transition-colors font-semibold"
                 >
                   {isLoading ? '⏳ Joining...' : '🍿 Join Watch Party'}
                 </button>
@@ -501,7 +501,7 @@ function Home() {
                           {participant.movies.slice(0, 2).map((movie, index) => (
                             <div 
                               key={movie.id} 
-                              className={`text-xs text-gray-600 dark:text-gray-400 flex items-center space-x-2 ${
+                              className={`text-xs text-gray-600 dark:text-gray-400 flex items-center justify-between ${
                                 movie.letterboxdRating ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 p-1 -m-1 rounded' : ''
                               }`}
                               onClick={() => {
@@ -510,10 +510,12 @@ function Home() {
                                 }
                               }}
                             >
-                              <span className="text-orange-500">#{index + 1}</span>
-                              <span className="truncate flex-1">{movie.title}</span>
-                              <span className="text-gray-400">({movie.release_date?.split('-')[0]})</span>
-                              <div className="flex items-center space-x-1 text-xs">
+                              <div className="flex items-center space-x-2 flex-1 min-w-0">
+                                <span className="text-orange-500">#{index + 1}</span>
+                                <span className="truncate">{movie.title}</span>
+                                <span className="text-gray-400">({movie.release_date?.split('-')[0]})</span>
+                              </div>
+                              <div className="flex items-center space-x-1 text-xs flex-shrink-0">
                                 {movie.letterboxdRating ? (
                                   <span className="text-green-600 dark:text-green-400">
                                     ⭐{movie.letterboxdRating.rating.toFixed(1)}
