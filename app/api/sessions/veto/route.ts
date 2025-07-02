@@ -5,7 +5,7 @@ import { calculateRankedChoiceWinner } from '../../../../lib/voting';
 
 export async function POST(request: NextRequest) {
   try {
-    const { code, username, movieId }: VetoMovieRequest = await request.json();
+    const { code, username, movieId, nominationId }: VetoMovieRequest = await request.json();
     
     if (!code?.trim() || !username?.trim() || !movieId) {
       return NextResponse.json<SessionResponse>({ 
@@ -50,6 +50,9 @@ export async function POST(request: NextRequest) {
     
     // Record the veto
     participant.vetoedMovieId = movieId;
+    if (nominationId) {
+      participant.vetoedNominationId = nominationId;
+    }
     participant.hasVoted = true;
     
     // Check if everyone has vetoed

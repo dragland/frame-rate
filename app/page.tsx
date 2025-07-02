@@ -241,62 +241,66 @@ function Home() {
 
   if (!isLoggedIn) {
     return (
-      <main className="min-h-screen flex items-center justify-center p-8 bg-gradient-to-br from-slate-50 to-blue-50 dark:from-gray-900 dark:to-gray-800">
-        <div className="max-w-md w-full">
-          <h1 className="text-4xl font-bold text-center mb-8 dark:text-white text-gray-800">🎞️ Frame Rate</h1>
-          
-          {/* Letterboxd-style username input */}
-          <div className="mb-6">
-            <input
-              type="text"
-              placeholder="letterboxd username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
-              className="w-full p-4 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-600 dark:text-white rounded-lg focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400 font-mono text-center lowercase placeholder:text-gray-400 placeholder:normal-case"
-              required
-            />
+      <main className="h-screen h-dvh flex items-center justify-center p-4 sm:p-8 bg-gradient-to-br from-slate-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 overflow-hidden">
+        <div className="max-w-md w-full flex flex-col justify-center min-h-0">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl sm:text-4xl font-bold dark:text-white text-gray-800">🎞️ Frame Rate</h1>
           </div>
-
-          {sessionError && (
-            <div className="mb-4 p-3 bg-red-100 dark:bg-red-900 border border-red-300 dark:border-red-700 rounded-lg text-red-700 dark:text-red-300 text-sm">
-              {sessionError}
+          
+          <div className="space-y-6">
+            {/* Username input */}
+            <div>
+              <input
+                type="text"
+                placeholder="letterboxd username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                className="w-full p-4 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-600 dark:text-white rounded-lg focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400 font-mono text-center lowercase placeholder:text-gray-400 placeholder:normal-case"
+                required
+              />
             </div>
-          )}
 
-          <div className="space-y-4">
-            {!isFromJoinUrl && (
-              <form onSubmit={handleStartMovieNight}>
+            {sessionError && (
+              <div className="p-3 bg-red-100 dark:bg-red-900 border border-red-300 dark:border-red-700 rounded-lg text-red-700 dark:text-red-300 text-sm">
+                {sessionError}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              {!isFromJoinUrl && (
+                <form onSubmit={handleStartMovieNight}>
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white p-4 rounded-lg transition-colors font-semibold"
+                  >
+                    {isLoading ? '⏳ Creating...' : '🎬 Start Movie Night'}
+                  </button>
+                </form>
+              )}
+              
+              <form onSubmit={handleJoinWatchParty} className="space-y-3">
+                <input
+                  type="text"
+                  placeholder="Enter 4-letter code"
+                  value={joinCode}
+                  onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                  maxLength={4}
+                  className="w-full p-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-center font-mono text-lg tracking-wider"
+                  required
+                />
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white p-4 rounded-lg transition-colors font-semibold"
+                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white p-4 rounded-lg transition-colors font-semibold"
                 >
-                  {isLoading ? '⏳ Creating...' : '🎬 Start Movie Night'}
+                  {isLoading ? '⏳ Joining...' : '🍿 Join Watch Party'}
                 </button>
               </form>
-            )}
-            
-            <form onSubmit={handleJoinWatchParty} className="space-y-3">
-              <input
-                type="text"
-                placeholder="Enter 4-letter code"
-                value={joinCode}
-                onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                maxLength={4}
-                className="w-full p-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-center font-mono text-lg tracking-wider"
-                required
-              />
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white p-4 rounded-lg transition-colors font-semibold"
-              >
-                {isLoading ? '⏳ Joining...' : '🍿 Join Watch Party'}
-              </button>
-            </form>
+            </div>
           </div>
           
-          <div className="mt-12">
+          <div className="mt-8 sm:mt-12">
             <a 
               href="https://github.com/dragland" 
               target="_blank" 
@@ -315,7 +319,7 @@ function Home() {
   }
 
   return (
-    <main className="min-h-screen flex">
+    <main className="h-screen h-dvh flex overflow-hidden">
       {/* Mobile Menu Button */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -323,7 +327,7 @@ function Home() {
       >
         {sidebarOpen ? '✕' : (
           <div className="flex items-center space-x-1">
-            <span>🍿 {myMovies.length}</span>
+            <span>🍿 {sessionData && sessionMode !== 'solo' ? sessionData.participants.length : myMovies.length}</span>
             {sessionCode && sessionMode !== 'solo' && (
               <span className="text-xs font-mono bg-green-600 px-1 rounded">
                 {sessionCode}
@@ -334,15 +338,15 @@ function Home() {
       </button>
 
       {/* Main Content */}
-      <div className="flex-1 p-4 md:p-8 md:pr-4">
-        <div>
-          <div className="flex justify-between items-center mb-8">
-            <div className="flex items-center space-x-4">
-              <h1 className="text-3xl font-bold dark:text-white">🎞️ Frame Rate</h1>
+      <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-shrink-0 p-4 sm:p-6 md:p-8 md:pr-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex justify-between items-center mb-6">
+            <div className="flex items-center space-x-3 sm:space-x-4 min-w-0">
+              <h1 className="text-2xl sm:text-3xl font-bold dark:text-white truncate">🎞️ Frame Rate</h1>
               {sessionCode && sessionMode !== 'solo' && (
                 <button
                   onClick={copySessionCode}
-                  className={`hidden sm:flex items-center space-x-2 px-3 py-1 rounded-full transition-colors cursor-pointer ${
+                  className={`hidden sm:flex items-center space-x-2 px-3 py-1 rounded-full transition-colors cursor-pointer flex-shrink-0 ${
                     justCopied 
                       ? 'bg-green-200 dark:bg-green-700' 
                       : 'bg-green-100 dark:bg-green-900 hover:bg-green-200 dark:hover:bg-green-800'
@@ -358,13 +362,13 @@ function Home() {
                 </button>
               )}
             </div>
-            <div className="hidden md:block font-mono text-orange-600 dark:text-orange-400">
+            <div className="hidden md:block font-mono text-orange-600 dark:text-orange-400 flex-shrink-0">
               {username}
             </div>
           </div>
 
           {/* Search Section */}
-          <div className="mb-6">
+          <div>
             <input
               type="text"
               placeholder="Search for movies..."
@@ -373,7 +377,9 @@ function Home() {
               className="w-full p-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
+        </div>
 
+        <div className="flex-1 p-4 sm:p-6 md:p-8 md:pr-4 overflow-y-auto">
           {isLoading && (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
@@ -398,11 +404,11 @@ function Home() {
 
       {/* Sidebar */}
       <div className={`
-        fixed md:relative top-0 right-0 h-full w-96 bg-white dark:bg-gray-800 shadow-xl border-l dark:border-gray-700 z-40
-        transform transition-transform duration-300 ease-in-out
+        fixed md:relative top-0 right-0 h-full h-dvh w-80 sm:w-96 bg-white dark:bg-gray-800 shadow-xl border-l dark:border-gray-700 z-40
+        transform transition-transform duration-300 ease-in-out flex-shrink-0
         ${sidebarOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
       `}>
-        <div className="p-6 h-full overflow-y-auto">
+        <div className="p-4 sm:p-6 h-full overflow-y-auto flex flex-col">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold dark:text-white">
               🍿 Movie Night {sessionData && sessionMode !== 'solo' ? `(${sessionData.participants.length})` : `(${myMovies.length})`}
@@ -437,102 +443,103 @@ function Home() {
             </div>
           )}
 
-          <div className="space-y-3 mb-6">
-            {myMovies.map((movie, index) => (
-              <DraggableMovieItem
-                key={movie.id}
-                movie={movie}
-                index={index}
-                onRemove={() => removeFromMyList(movie.id)}
-                onMove={moveMovie}
-                showDivider={index === 1 && myMovies.length > 2}
-                isVotingLocked={isVotingLocked}
-              />
-            ))}
-            {myMovies.length === 0 && (
-              <p className="text-gray-500 dark:text-gray-400 text-center py-8">
-                Search and add movies for movie night
-              </p>
-            )}
+          <div className="flex-1 min-h-0">
+            <div className="space-y-3 mb-6">
+              {myMovies.map((movie, index) => (
+                <DraggableMovieItem
+                  key={movie.id}
+                  movie={movie}
+                  index={index}
+                  onRemove={() => removeFromMyList(movie.id)}
+                  onMove={moveMovie}
+                  showDivider={index === 1 && myMovies.length > 2}
+                  isVotingLocked={isVotingLocked}
+                />
+              ))}
+              {myMovies.length === 0 && (
+                <p className="text-gray-500 dark:text-gray-400 text-center py-8">
+                  Search and add movies for movie night
+                </p>
+              )}
+            </div>
           </div>
 
-          {sessionData && sessionMode !== 'solo' && (
-            <div className="mb-6">
-              <h3 className="font-semibold mb-3 text-sm text-gray-700 dark:text-gray-300">
-                Nominations
-              </h3>
-              <div className="space-y-4">
-                {sessionData.participants
-                  .filter(participant => participant.username !== username)
-                  .map((participant) => (
-                  <div key={participant.username} className="border-l-2 border-gray-200 dark:border-gray-600 pl-3">
-                    <h4 className="font-medium text-sm mb-2 dark:text-white">
-                      {participant.username}
-                      <span className="text-gray-500 dark:text-gray-400 ml-1">
-                        ({participant.movies.length})
-                      </span>
-                    </h4>
-                    {participant.movies.length > 0 ? (
-                      <div className="space-y-1">
-                        {participant.movies.slice(0, 2).map((movie, index) => (
-                          <div 
-                            key={movie.id} 
-                            className={`text-xs text-gray-600 dark:text-gray-400 flex items-center space-x-2 ${
-                              movie.letterboxdRating ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 p-1 -m-1 rounded' : ''
-                            }`}
-                            onClick={() => {
-                              if (movie.letterboxdRating) {
-                                window.open(movie.letterboxdRating.filmUrl, '_blank');
-                              }
-                            }}
-                          >
-                            <span className="text-orange-500">#{index + 1}</span>
-                            <span className="truncate flex-1">{movie.title}</span>
-                            <span className="text-gray-400">({movie.release_date?.split('-')[0]})</span>
-                            <div className="flex items-center space-x-1 text-xs">
-                              {movie.letterboxdRating ? (
-                                <span className="text-green-600 dark:text-green-400">
-                                  ⭐{movie.letterboxdRating.rating.toFixed(1)}
+            {sessionData && sessionMode !== 'solo' && (
+              <div className="mb-6">
+                <div className="space-y-4">
+                  {sessionData.participants
+                    .filter(participant => participant.username !== username)
+                    .map((participant) => (
+                    <div key={participant.username} className="border-l-2 border-gray-200 dark:border-gray-600 pl-3">
+                      <h4 className="font-medium text-sm mb-2 dark:text-white">
+                        {participant.username}
+                        <span className="text-gray-500 dark:text-gray-400 ml-1">
+                          ({participant.movies.length})
+                        </span>
+                      </h4>
+                      {participant.movies.length > 0 ? (
+                        <div className="space-y-1">
+                          {participant.movies.slice(0, 2).map((movie, index) => (
+                            <div 
+                              key={movie.id} 
+                              className={`text-xs text-gray-600 dark:text-gray-400 flex items-center space-x-2 ${
+                                movie.letterboxdRating ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 p-1 -m-1 rounded' : ''
+                              }`}
+                              onClick={() => {
+                                if (movie.letterboxdRating) {
+                                  window.open(movie.letterboxdRating.filmUrl, '_blank');
+                                }
+                              }}
+                            >
+                              <span className="text-orange-500">#{index + 1}</span>
+                              <span className="truncate flex-1">{movie.title}</span>
+                              <span className="text-gray-400">({movie.release_date?.split('-')[0]})</span>
+                              <div className="flex items-center space-x-1 text-xs">
+                                {movie.letterboxdRating ? (
+                                  <span className="text-green-600 dark:text-green-400">
+                                    ⭐{movie.letterboxdRating.rating.toFixed(1)}
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-400 dark:text-gray-500">⭐N/A</span>
+                                )}
+                                <span className="text-yellow-600 dark:text-yellow-400">
+                                  {Math.round(movie.vote_average * 10)}%
                                 </span>
-                              ) : (
-                                <span className="text-gray-400 dark:text-gray-500">⭐N/A</span>
-                              )}
-                              <span className="text-yellow-600 dark:text-yellow-400">
-                                {Math.round(movie.vote_average * 10)}%
-                              </span>
+                              </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-xs text-gray-400 dark:text-gray-500 italic">
-                        No movies yet
-                      </div>
-                    )}
-                  </div>
-                ))}
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-xs text-gray-400 dark:text-gray-500 italic">
+                          No movies yet
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
           
           {/* Only show vote button for group sessions */}
           {sessionData && sessionMode !== 'solo' && sessionData.participants.length >= 2 && (
-            <button 
-              onClick={handleVoteClick}
-              disabled={!canVote}
-              className={`w-full p-4 rounded-lg font-semibold transition-colors ${
-                canVote
-                  ? (sessionData?.votingPhase === 'ranking' ? 'bg-blue-500 hover:bg-blue-600 text-white' : 'bg-green-500 hover:bg-green-600 text-white')
-                  : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-              }`}
-            >
-              {sessionData?.votingPhase === 'ranking' && canVote && '🔒 Lock Votes'}
-              {sessionData?.votingPhase === 'locked' && '🔒 Votes Locked'}
-              {sessionData?.votingPhase === 'vetoing' && '🔒 Join Voting'}
-              {sessionData?.votingPhase === 'finalRanking' && '🔒 Final Rankings'}
-              {sessionData?.votingPhase === 'results' && '🏆 See Results'}
-              {sessionData?.votingPhase === 'ranking' && !canVote && 'Need 2+ movies each'}
-            </button>
+            <div className="flex-shrink-0 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <button 
+                onClick={handleVoteClick}
+                disabled={!canVote}
+                className={`w-full p-4 rounded-lg font-semibold transition-colors ${
+                  canVote
+                    ? (sessionData?.votingPhase === 'ranking' ? 'bg-blue-500 hover:bg-blue-600 text-white' : 'bg-green-500 hover:bg-green-600 text-white')
+                    : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                {sessionData?.votingPhase === 'ranking' && canVote && '🔒 Lock Votes'}
+                {sessionData?.votingPhase === 'locked' && '🔒 Votes Locked'}
+                {sessionData?.votingPhase === 'vetoing' && '🔒 Join Voting'}
+                {sessionData?.votingPhase === 'finalRanking' && '🔒 Final Rankings'}
+                {sessionData?.votingPhase === 'results' && '🏆 See Results'}
+                {sessionData?.votingPhase === 'ranking' && !canVote && 'Need 2 nominations'}
+              </button>
+            </div>
           )}
         </div>
       </div>

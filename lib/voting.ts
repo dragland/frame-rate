@@ -17,6 +17,18 @@ export const getAllMovies = (session: Session): Movie[] => {
   return Array.from(movieMap.values());
 };
 
+// Get all movie nominations including duplicates (for veto phase)
+export const getAllMovieNominations = (session: Session): (Movie & { nominatedBy: string })[] => {
+  const nominations: (Movie & { nominatedBy: string })[] = [];
+  session.participants.forEach(participant => {
+    // Only take the first 2 movies from each participant for the voting pool
+    participant.movies.slice(0, 2).forEach(movie => {
+      nominations.push({ ...movie, nominatedBy: participant.username });
+    });
+  });
+  return nominations;
+};
+
 export const getVetoedMovies = (session: Session): Movie[] => {
   const vetoedIds = session.participants
     .filter(p => p.vetoedMovieId)
@@ -24,6 +36,26 @@ export const getVetoedMovies = (session: Session): Movie[] => {
   
   const allMovies = getAllMovies(session);
   return allMovies.filter(movie => vetoedIds.includes(movie.id));
+};
+
+// Get vetoed nominations (including duplicates)
+export const getVetoedNominations = (session: Session): string[] => {
+  return session.participants
+    .filter(p => p.vetoedNominationId)
+    .map(p => p.vetoedNominationId!);
+};
+
+// Get remaining nominations after vetoes
+export const getRemainingNominations = (session: Session): (Movie & { nominatedBy: string; nominationId: string })[] => {
+  const allNominations = getAllMovieNominations(session);
+  const vetoedNominationIds = getVetoedNominations(session);
+  
+  return allNominations
+    .map(nomination => ({
+      ...nomination,
+      nominationId: `${nomination.id}-${nomination.nominatedBy}`
+    }))
+    .filter(nomination => !vetoedNominationIds.includes(nomination.nominationId));
 };
 
 export const getRemainingMovies = (session: Session): Movie[] => {
@@ -46,6 +78,7 @@ export const calculateRankedChoiceWinner = (session: Session): VotingResults => 
   const eliminatedMovies: Movie[] = [];
   const rounds: VotingResults['rounds'] = [];
   let round = 1;
+  let eliminationTieBreaking = false;
 
   console.log(`🗳️ Starting ranked choice voting:`);
   console.log(`📊 Total movies: ${allMovies.length}, Vetoed: ${vetoedMovieIds.length}, Remaining: ${remainingMovies.length}`);
@@ -84,7 +117,12 @@ export const calculateRankedChoiceWinner = (session: Session): VotingResults => 
       return {
         winner,
         eliminatedMovies,
-        rounds
+        rounds,
+        tieBreaking: eliminationTieBreaking ? {
+          isTieBreaker: true,
+          tiedMovies: [],
+          message: `Some eliminations required coin flips 🪙`
+        } : undefined
       };
     }
 
@@ -99,6 +137,7 @@ export const calculateRankedChoiceWinner = (session: Session): VotingResults => 
       const randomIndex = Math.floor(Math.random() * moviesWithMinVotes.length);
       eliminated = moviesWithMinVotes[randomIndex];
       console.log(`🎲 Random elimination: ${eliminated.title}`);
+      eliminationTieBreaking = true;
     } else {
       eliminated = moviesWithMinVotes[0];
     }
@@ -109,11 +148,68 @@ export const calculateRankedChoiceWinner = (session: Session): VotingResults => 
     round++;
   }
 
-  // Return last remaining movie as winner
+  // Handle final tie-breaking if needed
+  if (remainingMovies.length === 1) {
+    return {
+      winner: remainingMovies[0],
+      eliminatedMovies,
+      rounds,
+      tieBreaking: eliminationTieBreaking ? {
+        isTieBreaker: true,
+        tiedMovies: [],
+        message: `Some eliminations required coin flips 🪙`
+      } : undefined
+    };
+  }
+  
+  // If we somehow have multiple movies left (shouldn't happen with proper RCV), 
+  // pick winner based on final vote counts
+  const finalVotes: { [movieId: number]: number } = {};
+  remainingMovies.forEach(movie => {
+    finalVotes[movie.id] = 0;
+  });
+  
+  session.participants.forEach(participant => {
+    const movieList = participant.finalMovies && participant.finalMovies.length > 0 
+      ? participant.finalMovies 
+      : participant.movies;
+    
+    const firstChoice = movieList.find(movie => 
+      remainingMovies.some(rm => rm.id === movie.id)
+    );
+    if (firstChoice) {
+      finalVotes[firstChoice.id]++;
+    }
+  });
+  
+  const maxVotes = Math.max(...Object.values(finalVotes));
+  const winnersWithMaxVotes = remainingMovies.filter(movie => finalVotes[movie.id] === maxVotes);
+  
+  let finalWinner: Movie;
+  let tieBreaking = undefined;
+  
+  if (winnersWithMaxVotes.length > 1) {
+    console.log(`🎲 Final tie between: ${winnersWithMaxVotes.map(m => m.title).join(', ')} (${maxVotes} votes each)`);
+    const randomIndex = Math.floor(Math.random() * winnersWithMaxVotes.length);
+    finalWinner = winnersWithMaxVotes[randomIndex];
+    console.log(`🏆 Random winner: ${finalWinner.title}`);
+    
+    tieBreaking = {
+      isTieBreaker: true,
+      tiedMovies: winnersWithMaxVotes.map(m => m.title),
+      message: `It was a tie! Making an executive decision with a coin flip 🪙`
+    };
+  } else {
+    finalWinner = winnersWithMaxVotes[0];
+  }
+  
+  rounds.push({ round, votes: finalVotes });
+  
   return {
-    winner: remainingMovies[0],
+    winner: finalWinner,
     eliminatedMovies,
-    rounds
+    rounds,
+    tieBreaking
   };
 };
 
@@ -140,6 +236,18 @@ export const vetoMovie = async (code: string, username: string, movieId: number)
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ code, username, movieId } as VetoMovieRequest),
+  });
+  return response.json();
+};
+
+export const vetoNomination = async (code: string, username: string, nominationId: string) => {
+  const [movieIdStr] = nominationId.split('-');
+  const movieId = parseInt(movieIdStr);
+  
+  const response = await fetch('/api/sessions/veto', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, username, movieId, nominationId } as VetoMovieRequest),
   });
   return response.json();
 }; 

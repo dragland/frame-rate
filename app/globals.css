@@ -16,6 +16,11 @@
   }
 }
 
+html, body {
+  height: 100%;
+  overflow-x: hidden;
+}
+
 body {
   color: rgb(var(--foreground-rgb));
   background: linear-gradient(
@@ -25,6 +30,7 @@ body {
     )
     rgb(var(--background-start-rgb));
   min-height: 100vh;
+  min-height: 100dvh; /* Use dynamic viewport height for better mobile support */
 }
 
 .movie-card {

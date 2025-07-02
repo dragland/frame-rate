@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Session, VotingPhase } from '../../lib/types';
 import { Movie, getImageUrl } from '../../lib/tmdb';
-import { getAllMovies, getVetoedMovies, getRemainingMovies, startVoting, vetoMovie, updateFinalMovies } from '../../lib/voting';
+import { getAllMovies, getVetoedMovies, getRemainingMovies, getAllMovieNominations, getRemainingNominations, getVetoedNominations, startVoting, vetoMovie, vetoNomination, updateFinalMovies } from '../../lib/voting';
 import Image from 'next/image';
 
 interface VotingModalProps {
@@ -21,6 +21,9 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
   const allMovies = getAllMovies(session);
   const vetoedMovies = getVetoedMovies(session);
   const remainingMovies = getRemainingMovies(session);
+  const allNominations = getAllMovieNominations(session);
+  const remainingNominations = getRemainingNominations(session);
+  const vetoedNominations = getVetoedNominations(session);
   const currentUser = session.participants.find(p => p.username === username);
   const hasUserVetoed = currentUser?.hasVoted || false;
   const userVetoedMovie = currentUser?.vetoedMovieId;
@@ -73,6 +76,24 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
       }
     } catch (err) {
       setError('Failed to veto movie');
+    }
+    
+    setIsLoading(false);
+  };
+
+  const handleVetoNomination = async (nominationId: string) => {
+    setIsLoading(true);
+    setError('');
+    
+    try {
+      const response = await vetoNomination(session.code, username, nominationId);
+      if (response.success) {
+        onSessionUpdate(response.session);
+      } else {
+        setError(response.error || 'Failed to veto nomination');
+      }
+    } catch (err) {
+      setError('Failed to veto nomination');
     }
     
     setIsLoading(false);
@@ -136,7 +157,6 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
   const renderVetoingPhase = () => (
     <div>
       <div className="text-center mb-6">
-        <div className="text-4xl mb-2">💀</div>
         <h3 className="text-xl font-semibold mb-2 dark:text-white">Veto Phase</h3>
         <p className="text-gray-600 dark:text-gray-400 text-sm">
           Choose one movie to eliminate from the voting pool
@@ -172,44 +192,45 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
         </div>
       ) : (
         <div>
-          {vetoedMovies.length > 0 && (
+          {vetoedNominations.length > 0 && (
             <div className="mb-4 p-2 bg-red-50 dark:bg-red-900 rounded text-xs text-red-700 dark:text-red-300">
-              Already vetoed: {vetoedMovies.map(m => m.title).join(', ')}
+              Vetoed nominations: {vetoedNominations.length}
             </div>
           )}
           
           <div className="space-y-3 max-h-96 overflow-y-auto">
-            {allMovies.filter(movie => !vetoedMovies.some(v => v.id === movie.id)).map((movie) => (
+            {remainingNominations.map((nomination) => (
               <div
-                key={movie.id}
+                key={nomination.nominationId}
                 className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer transition-all"
-                onClick={() => handleVetoMovie(movie.id)}
+                onClick={() => handleVetoNomination(nomination.nominationId)}
               >
                 <Image
-                  src={getImageUrl(movie.poster_path)}
-                  alt={movie.title}
+                  src={getImageUrl(nomination.poster_path)}
+                  alt={nomination.title}
                   width={40}
                   height={60}
                   className="rounded flex-shrink-0"
                 />
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-sm truncate dark:text-white">{movie.title}</div>
+                  <div className="font-semibold text-sm truncate dark:text-white">{nomination.title}</div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 space-x-2">
-                    <span>{movie.release_date?.split('-')[0]}</span>
-                    {movie.letterboxdRating ? (
+                    <span>{nomination.release_date?.split('-')[0]}</span>
+                    <span className="text-blue-600 dark:text-blue-400">{nomination.nominatedBy}</span>
+                    {nomination.letterboxdRating ? (
                       <a
-                        href={movie.letterboxdRating.filmUrl}
+                        href={nomination.letterboxdRating.filmUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        ⭐ {movie.letterboxdRating.rating.toFixed(1)}
+                        ⭐ {nomination.letterboxdRating.rating.toFixed(1)}
                       </a>
                     ) : (
                       <span className="text-gray-400 dark:text-gray-500">⭐ N/A</span>
                     )}
-                    <span className="text-yellow-600 dark:text-yellow-400">{Math.round(movie.vote_average * 10)}%</span>
+                    <span className="text-yellow-600 dark:text-yellow-400">{Math.round(nomination.vote_average * 10)}%</span>
                   </div>
                 </div>
                 <button className="text-red-500 hover:text-red-700 px-3 py-1 rounded font-semibold">
@@ -323,8 +344,22 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
     return (
       <div className="text-center">
         <div className="text-6xl mb-4">🥇</div>
+        
+        {session.votingResults.tieBreaking?.isTieBreaker && (
+          <div className="mb-4 p-2 bg-orange-50 dark:bg-orange-900 border border-orange-200 dark:border-orange-700 rounded-lg">
+            <div className="text-orange-700 dark:text-orange-300 text-sm font-medium text-center">
+              🪙 Took executive action for tie 🪙
+            </div>
+            {session.votingResults.tieBreaking.tiedMovies.length > 0 && (
+              <div className="text-orange-600 dark:text-orange-400 text-xs text-center mt-1">
+                Tied between: {session.votingResults.tieBreaking.tiedMovies.join(', ')}
+              </div>
+            )}
+          </div>
+        )}
+
         <h3 className="text-2xl font-bold mb-4 text-green-600 dark:text-green-400">
-          {winner.title}
+          {winner.title} ({winner.release_date?.split('-')[0] || 'Unknown'})
         </h3>
         
         <div className="mb-6">
@@ -377,12 +412,14 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
           </div>
         )}
 
-        <button
-          onClick={onClose}
-          className="mt-6 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold"
+        <a
+          href="https://www.plex.tv/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-6 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold inline-block"
         >
-          🎬 Let's Watch!
-        </button>
+          🎬 Watch Now
+        </a>
       </div>
     );
   };

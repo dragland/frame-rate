@@ -9,6 +9,7 @@ export interface SessionParticipant {
   joinedAt: Date;
   hasVoted?: boolean;
   vetoedMovieId?: number;
+  vetoedNominationId?: string; // Format: "movieId-nominatedBy" to track specific nominations
 }
 
 export interface VotingResults {
@@ -19,6 +20,11 @@ export interface VotingResults {
     eliminated?: Movie;
     votes: { [movieId: number]: number };
   }[];
+  tieBreaking?: {
+    isTieBreaker: boolean;
+    tiedMovies: string[];
+    message: string;
+  };
 }
 
 export interface Session {
@@ -57,6 +63,7 @@ export interface VetoMovieRequest {
   code: string;
   username: string;
   movieId: number;
+  nominationId?: string; // Optional: for tracking specific nominations
 }
 
 export interface UpdateFinalMoviesRequest {
