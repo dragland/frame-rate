@@ -8,6 +8,7 @@ import { createSession, joinSession, updateMovies, getSession, debounce } from '
 import { Session } from '../lib/types';
 import { canStartVoting, startVoting } from '../lib/voting';
 import VotingModal from './components/VotingModal';
+import ProfilePicture from './components/ProfilePicture';
 import Image from 'next/image';
 
 type SessionMode = 'solo' | 'host' | 'guest';
@@ -327,6 +328,13 @@ function Home() {
       >
         {sidebarOpen ? '✕' : (
           <div className="flex items-center space-x-1">
+            {sessionData && (
+              <ProfilePicture 
+                username={username}
+                profilePicture={sessionData.participants.find(p => p.username === username)?.profilePicture}
+                size="sm"
+              />
+            )}
             <span>🍿 {sessionData && sessionMode !== 'solo' ? sessionData.participants.length : myMovies.length}</span>
             {sessionCode && sessionMode !== 'solo' && (
               <span className="text-xs font-mono bg-green-600 px-1 rounded">
@@ -362,8 +370,15 @@ function Home() {
                 </button>
               )}
             </div>
-            <div className="hidden md:block font-mono text-orange-600 dark:text-orange-400 flex-shrink-0">
-              {username}
+            <div className="hidden md:flex items-center space-x-2 font-mono text-orange-600 dark:text-orange-400 flex-shrink-0">
+              {sessionData && (
+                <ProfilePicture 
+                  username={username}
+                  profilePicture={sessionData.participants.find(p => p.username === username)?.profilePicture}
+                  size="sm"
+                />
+              )}
+              <span>{username}</span>
             </div>
           </div>
 
@@ -471,12 +486,19 @@ function Home() {
                     .filter(participant => participant.username !== username)
                     .map((participant) => (
                     <div key={participant.username} className="border-l-2 border-gray-200 dark:border-gray-600 pl-3">
-                      <h4 className="font-medium text-sm mb-2 dark:text-white">
-                        {participant.username}
-                        <span className="text-gray-500 dark:text-gray-400 ml-1">
-                          ({participant.movies.length})
-                        </span>
-                      </h4>
+                      <div className="flex items-center space-x-2 mb-2">
+                        <ProfilePicture 
+                          username={participant.username}
+                          profilePicture={participant.profilePicture}
+                          size="sm"
+                        />
+                        <h4 className="font-medium text-sm dark:text-white">
+                          {participant.username}
+                          <span className="text-gray-500 dark:text-gray-400 ml-1">
+                            ({participant.movies.length})
+                          </span>
+                        </h4>
+                      </div>
                       {participant.movies.length > 0 ? (
                         <div className="space-y-1">
                           {participant.movies.slice(0, 2).map((movie, index) => (

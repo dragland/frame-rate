@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Session, VotingPhase } from '../../lib/types';
 import { Movie, getImageUrl } from '../../lib/tmdb';
 import { getAllMovies, getVetoedMovies, getRemainingMovies, getAllMovieNominations, getRemainingNominations, getVetoedNominations, startVoting, vetoMovie, vetoNomination, updateFinalMovies } from '../../lib/voting';
+import ProfilePicture from './ProfilePicture';
 import Image from 'next/image';
 
 interface VotingModalProps {
@@ -157,38 +158,40 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
   const renderVetoingPhase = () => (
     <div>
       <div className="text-center mb-6">
-        <h3 className="text-xl font-semibold mb-2 dark:text-white">Veto Phase</h3>
-        <p className="text-gray-600 dark:text-gray-400 text-sm">
-          Choose one movie to eliminate from the voting pool
-        </p>
+        <h3 className="text-xl font-semibold mb-2 dark:text-white flex items-center justify-center space-x-2">
+          <span className="text-2xl">💀</span>
+          <span>Veto Phase</span>
+        </h3>
+        {!hasUserVetoed && (
+          <p className="text-gray-600 dark:text-gray-400 text-sm">
+            Choose one movie to eliminate from the voting pool
+          </p>
+        )}
         
-        {/* Veto progress */}
-        <div className="mt-4 text-sm">
-          <div className="text-gray-500 dark:text-gray-400">
-            {session.participants.filter(p => p.hasVoted).length} / {session.participants.length} vetoed
+        {/* Veto progress - only show if user hasn't vetoed yet */}
+        {!hasUserVetoed && (
+          <div className="mt-4 text-sm">
+            <div className="text-gray-500 dark:text-gray-400">
+              {session.participants.filter(p => p.hasVoted).length} / {session.participants.length} vetoed
+            </div>
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
+              <div 
+                className="bg-red-500 h-2 rounded-full transition-all duration-300"
+                style={{ 
+                  width: `${(session.participants.filter(p => p.hasVoted).length / session.participants.length) * 100}%` 
+                }}
+              />
+            </div>
           </div>
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
-            <div 
-              className="bg-red-500 h-2 rounded-full transition-all duration-300"
-              style={{ 
-                width: `${(session.participants.filter(p => p.hasVoted).length / session.participants.length) * 100}%` 
-              }}
-            />
-          </div>
-        </div>
+        )}
       </div>
 
       {hasUserVetoed ? (
         <div className="text-center py-8">
-          <div className="text-green-600 dark:text-green-400 mb-2">✓ You have vetoed a movie</div>
+          <div className="text-green-600 dark:text-green-400 mb-2">✓ Vetoed "{vetoedMovies.find(m => m.id === userVetoedMovie)?.title || 'Unknown'}"</div>
           <div className="text-sm text-gray-500 dark:text-gray-400">
             Waiting for others to complete their vetoes...
           </div>
-          {vetoedMovies.length > 0 && (
-            <div className="mt-4 text-xs text-gray-500 dark:text-gray-400">
-              Vetoed: {vetoedMovies.map(m => m.title).join(', ')}
-            </div>
-          )}
         </div>
       ) : (
         <div>
@@ -214,9 +217,8 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
                 />
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-sm truncate dark:text-white">{nomination.title}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 space-x-2">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center space-x-2">
                     <span>{nomination.release_date?.split('-')[0]}</span>
-                    <span className="text-blue-600 dark:text-blue-400">{nomination.nominatedBy}</span>
                     {nomination.letterboxdRating ? (
                       <a
                         href={nomination.letterboxdRating.filmUrl}
@@ -233,8 +235,13 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
                     <span className="text-yellow-600 dark:text-yellow-400">{Math.round(nomination.vote_average * 10)}%</span>
                   </div>
                 </div>
-                <button className="text-red-500 hover:text-red-700 px-3 py-1 rounded font-semibold">
-                  💀 Veto
+                <button className="text-red-500 hover:text-red-700 px-3 py-1 rounded font-semibold flex items-center space-x-1">
+                  <ProfilePicture 
+                    username={nomination.nominatedBy}
+                    profilePicture={session.participants.find(p => p.username === nomination.nominatedBy)?.profilePicture}
+                    size="sm"
+                  />
+                  <span>Veto</span>
                 </button>
               </div>
             ))}
@@ -248,7 +255,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
     <div>
       <div className="text-center mb-6">
         <div className="text-4xl mb-2">🎯</div>
-        <h3 className="text-xl font-semibold mb-2 dark:text-white">Rank final nominations</h3>
+        <h3 className="text-xl font-semibold mb-2 dark:text-white">Cast final rankings</h3>
         
         {/* Final ranking progress */}
         <div className="mt-4 text-sm">
@@ -345,19 +352,6 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
       <div className="text-center">
         <div className="text-6xl mb-4">🥇</div>
         
-        {session.votingResults.tieBreaking?.isTieBreaker && (
-          <div className="mb-4 p-2 bg-orange-50 dark:bg-orange-900 border border-orange-200 dark:border-orange-700 rounded-lg">
-            <div className="text-orange-700 dark:text-orange-300 text-sm font-medium text-center">
-              🪙 Took executive action for tie 🪙
-            </div>
-            {session.votingResults.tieBreaking.tiedMovies.length > 0 && (
-              <div className="text-orange-600 dark:text-orange-400 text-xs text-center mt-1">
-                Tied between: {session.votingResults.tieBreaking.tiedMovies.join(', ')}
-              </div>
-            )}
-          </div>
-        )}
-
         <h3 className="text-2xl font-bold mb-4 text-green-600 dark:text-green-400">
           {winner.title} ({winner.release_date?.split('-')[0] || 'Unknown'})
         </h3>
@@ -413,13 +407,24 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
         )}
 
         <a
-          href="https://www.plex.tv/"
-          target="_blank"
-          rel="noopener noreferrer"
+          href="plex://"
           className="mt-6 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold inline-block"
         >
           🎬 Watch Now
         </a>
+
+        {session.votingResults.tieBreaking?.isTieBreaker && (
+          <div className="mt-4 p-2 bg-orange-50 dark:bg-orange-900 border border-orange-200 dark:border-orange-700 rounded-lg">
+            <div className="text-orange-700 dark:text-orange-300 text-sm font-medium text-center">
+              🪙 took executive action for tie 🪙
+            </div>
+            {session.votingResults.tieBreaking.tiedMovies.length > 0 && (
+              <div className="text-orange-600 dark:text-orange-400 text-xs text-center mt-1">
+                Tied between: {session.votingResults.tieBreaking.tiedMovies.join(', ')}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   };

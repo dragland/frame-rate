@@ -10,6 +10,8 @@ export interface SessionParticipant {
   hasVoted?: boolean;
   vetoedMovieId?: number;
   vetoedNominationId?: string; // Format: "movieId-nominatedBy" to track specific nominations
+  profilePicture?: string | null; // Letterboxd profile picture URL
+  letterboxdExists?: boolean; // Whether the Letterboxd profile exists
 }
 
 export interface VotingResults {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import getRedisClient from '../../../../lib/redis';
 import { Session, VetoMovieRequest, SessionResponse } from '../../../../lib/types';
-import { calculateRankedChoiceWinner } from '../../../../lib/voting';
+import { calculateRankedChoiceWinner, getRemainingMovies } from '../../../../lib/voting';
 
 export async function POST(request: NextRequest) {
   try {
@@ -59,15 +59,25 @@ export async function POST(request: NextRequest) {
     const allVetoed = session.participants.every(p => p.hasVoted);
     
     if (allVetoed) {
-      // Transition to final ranking phase instead of results
-      session.votingPhase = 'finalRanking';
+      // Check if only one movie remains after vetoes
+      const remainingMovies = getRemainingMovies(session);
       
-      // Reset finalMovies for all participants
-      session.participants.forEach(p => {
-        p.finalMovies = undefined;
-      });
-      
-      console.log(`🎯 All vetoes complete for session ${code}. Moving to final ranking phase.`);
+      if (remainingMovies.length <= 1) {
+        // Skip directly to results - there's only one movie left
+        session.votingPhase = 'results';
+        session.votingResults = calculateRankedChoiceWinner(session);
+        console.log(`🏆 Only one movie remains after vetoes for session ${code}. Winner: ${remainingMovies[0]?.title || 'Unknown'}`);
+      } else {
+        // Transition to final ranking phase
+        session.votingPhase = 'finalRanking';
+        
+        // Reset finalMovies for all participants
+        session.participants.forEach(p => {
+          p.finalMovies = undefined;
+        });
+        
+        console.log(`🎯 All vetoes complete for session ${code}. Moving to final ranking phase.`);
+      }
     }
     
     await redis.setex(
