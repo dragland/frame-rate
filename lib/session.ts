@@ -36,6 +36,16 @@ export const getSession = async (code: string): Promise<SessionResponse> => {
   return response.json();
 };
 
+export const leaveSession = async (code: string, username: string): Promise<SessionResponse> => {
+  const response = await fetch('/api/sessions/leave', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, username }),
+  });
+  
+  return response.json();
+};
+
 // Utility to debounce movie updates
 export const debounce = <T extends (...args: any[]) => void>(
   func: T,

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { searchMovies, Movie, getImageUrl } from '../lib/tmdb';
 import { getLetterboxdRating } from '../lib/letterboxd';
-import { createSession, joinSession, updateMovies, getSession, debounce } from '../lib/session';
+import { createSession, joinSession, updateMovies, getSession, leaveSession, debounce } from '../lib/session';
 import { Session } from '../lib/types';
 import { canStartVoting, startVoting } from '../lib/voting';
 import VotingModal from './components/VotingModal';
@@ -13,21 +13,35 @@ import Image from 'next/image';
 
 type SessionMode = 'solo' | 'host' | 'guest';
 
-function Home() {
+interface HomeProps {
+  initialSessionData?: Session;
+  initialUsername?: string;
+  initialSessionCode?: string;
+}
+
+function Home({ initialSessionData, initialUsername, initialSessionCode }: HomeProps = {}) {
   const searchParams = useSearchParams();
-  const [username, setUsername] = useState('');
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [sessionMode, setSessionMode] = useState<SessionMode>('solo');
-  const [sessionCode, setSessionCode] = useState('');
+  const [username, setUsername] = useState(initialUsername || '');
+  const [isLoggedIn, setIsLoggedIn] = useState(!!initialSessionData);
+  const [sessionMode, setSessionMode] = useState<SessionMode>(
+    initialSessionData 
+      ? (initialSessionData.host === initialUsername ? 'host' : 'guest')
+      : 'solo'
+  );
+  const [sessionCode, setSessionCode] = useState(initialSessionCode || '');
   const [joinCode, setJoinCode] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Movie[]>([]);
-  const [myMovies, setMyMovies] = useState<Movie[]>([]);
+  const [myMovies, setMyMovies] = useState<Movie[]>(
+    initialSessionData && initialUsername 
+      ? initialSessionData.participants.find(p => p.username === initialUsername)?.movies || []
+      : []
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedDescriptions, setExpandedDescriptions] = useState<Set<number>>(new Set());
   const [justCopied, setJustCopied] = useState(false);
-  const [sessionData, setSessionData] = useState<Session | null>(null);
+  const [sessionData, setSessionData] = useState<Session | null>(initialSessionData || null);
   const [sessionError, setSessionError] = useState<string>('');
   const [showVotingModal, setShowVotingModal] = useState(false);
 
@@ -40,10 +54,10 @@ function Home() {
       try {
         const response = await createSession(username.trim());
         if (response.success && response.session) {
-          setSessionData(response.session);
-          setSessionCode(response.session.code);
-          setSessionMode('host');
-          setIsLoggedIn(true);
+          // Store username in localStorage for rejoining
+          localStorage.setItem('frameRateUsername', username.trim());
+          // Redirect to shareable URL
+          window.location.href = `/${response.session.code}`;
         } else {
           setSessionError(response.error || 'Failed to create session');
         }
@@ -64,10 +78,10 @@ function Home() {
       try {
         const response = await joinSession(joinCode.trim().toUpperCase(), username.trim());
         if (response.success && response.session) {
-          setSessionData(response.session);
-          setSessionCode(response.session.code);
-          setSessionMode('guest');
-          setIsLoggedIn(true);
+          // Store username in localStorage for future rejoining
+          localStorage.setItem('frameRateUsername', username.trim());
+          // Redirect to shareable URL
+          window.location.href = `/${response.session.code}`;
         } else {
           setSessionError(response.error || 'Failed to join session');
         }
@@ -197,6 +211,24 @@ function Home() {
     });
   };
 
+  const handleExitSession = async () => {
+    // Leave session if currently in one
+    if (sessionData && sessionMode !== 'solo') {
+      try {
+        await leaveSession(sessionData.code, username);
+        console.log(`👋 Left session ${sessionData.code}`);
+      } catch (error) {
+        console.error('Failed to leave session:', error);
+        // Continue with exit even if leave fails
+      }
+    }
+    
+    // Clear stored username
+    localStorage.removeItem('frameRateUsername');
+    // Redirect to root
+    window.location.href = '/';
+  };
+
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       handleSearch(searchQuery);
@@ -257,7 +289,12 @@ function Home() {
       <main className="h-screen h-dvh flex items-start sm:items-center justify-center p-4 sm:p-8 bg-gradient-to-br from-black to-gray-900 overflow-hidden overscroll-none">
         <div className="max-w-md w-full flex flex-col justify-start sm:justify-center pt-4 sm:pt-0 pb-4 sm:pb-0 min-h-0 max-h-full overflow-hidden">
           <div className="text-center mb-4 sm:mb-8">
-            <h1 className="text-3xl sm:text-4xl font-bold text-white">🎞️ Frame Rate</h1>
+            <button
+              onClick={() => window.location.href = '/'}
+              className="text-3xl sm:text-4xl font-bold text-white hover:text-gray-300 transition-colors"
+            >
+              🎞️ Frame Rate
+            </button>
           </div>
           
           <div className="space-y-3 sm:space-y-6 flex-shrink-0">
@@ -362,7 +399,12 @@ function Home() {
         <div className="flex-shrink-0 p-4 sm:p-6 md:p-8 md:pr-4 border-b border-gray-800">
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center space-x-3 sm:space-x-4 min-w-0">
-              <h1 className="text-2xl sm:text-3xl font-bold text-white truncate">🎞️ Frame Rate</h1>
+              <button
+                onClick={handleExitSession}
+                className="text-2xl sm:text-3xl font-bold text-white truncate hover:text-gray-300 transition-colors"
+              >
+                🎞️ Frame Rate
+              </button>
               {sessionCode && sessionMode !== 'solo' && (
                 <button
                   onClick={copySessionCode}
@@ -812,6 +854,8 @@ function DraggableMovieItem({ movie, index, onRemove, onMove, showDivider, isVot
     </>
   );
 }
+
+export { Home };
 
 export default function Page() {
   return (
