@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { joinSession } from '../../lib/session';
 import { Session } from '../../lib/types';
-import { Home } from '../page';
+import Home from '../components/Home';
 
 export default function SessionCodePage({ params }: { params: { code: string } }) {
   const router = useRouter();
