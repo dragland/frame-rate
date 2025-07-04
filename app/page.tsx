@@ -229,6 +229,18 @@ function Home() {
     return () => clearInterval(interval);
   }, [sessionData, sessionMode, username]);
 
+  // Auto-open voting modal when voting starts
+  useEffect(() => {
+    if (!sessionData || sessionMode === 'solo') return;
+    
+    const votingPhases = ['vetoing', 'finalRanking'];
+    
+    // If voting phase is active and modal isn't already open, show it
+    if (votingPhases.includes(sessionData.votingPhase) && !showVotingModal) {
+      setShowVotingModal(true);
+    }
+  }, [sessionData?.votingPhase, sessionMode, showVotingModal]);
+
   // Auto-fill join code from URL parameter
   const [isFromJoinUrl, setIsFromJoinUrl] = useState(false);
   

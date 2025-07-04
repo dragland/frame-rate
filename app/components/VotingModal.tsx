@@ -164,7 +164,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
         </h3>
         {!hasUserVetoed && (
           <p className="text-gray-400 text-sm">
-            Choose one movie to eliminate from the voting pool
+            Veto one film from pool
           </p>
         )}
         
@@ -172,7 +172,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
         {!hasUserVetoed && (
           <div className="mt-4 text-sm">
             <div className="text-gray-500 dark:text-gray-400">
-              {session.participants.filter(p => p.hasVoted).length} / {session.participants.length} vetoed
+              Waiting on {session.participants.length - session.participants.filter(p => p.hasVoted).length} / {session.participants.length}
             </div>
             <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
               <div 
@@ -195,12 +195,6 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
         </div>
       ) : (
         <div>
-          {vetoedNominations.length > 0 && (
-            <div className="mb-4 p-2 bg-red-50 dark:bg-red-900 rounded text-xs text-red-700 dark:text-red-300">
-              Vetoed nominations: {vetoedNominations.length}
-            </div>
-          )}
-          
           <div className="space-y-3 max-h-96 overflow-y-auto">
             {remainingNominations.map((nomination) => (
               <div
@@ -260,7 +254,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
         {/* Final ranking progress */}
         <div className="mt-4 text-sm">
           <div className="text-gray-500 dark:text-gray-400">
-            {session.participants.filter(p => p.finalMovies && p.finalMovies.length > 0).length} / {session.participants.length} completed final rankings
+            Waiting on {session.participants.length - session.participants.filter(p => p.finalMovies && p.finalMovies.length > 0).length} / {session.participants.length}
           </div>
           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
             <div 
