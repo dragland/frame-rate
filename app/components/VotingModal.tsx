@@ -205,7 +205,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
             {remainingNominations.map((nomination) => (
               <div
                 key={nomination.nominationId}
-                className="flex items-center space-x-3 p-3 bg-gray-700 rounded-lg hover:bg-gray-600 cursor-pointer transition-all"
+                className="flex items-center space-x-3 p-3 bg-gray-800 rounded-lg hover:bg-gray-700 cursor-pointer transition-all"
                 onClick={() => handleVetoNomination(nomination.nominationId)}
               >
                 <Image
@@ -290,7 +290,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
                 onDragStart={(e) => handleDragStart(e, movie.id)}
                 onDragOver={handleDragOver}
                 onDrop={(e) => handleDrop(e, index)}
-                className="flex items-center space-x-3 p-3 bg-gray-700 rounded-lg hover:bg-gray-600 cursor-move transition-all"
+                className="flex items-center space-x-3 p-3 bg-gray-800 rounded-lg hover:bg-gray-700 cursor-move transition-all"
               >
                 <div className="text-gray-400 dark:text-gray-500 flex flex-col space-y-0.5">
                   <div className="w-1.5 h-0.5 bg-current rounded-full"></div>
@@ -393,7 +393,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
             <h4 className="font-semibold mb-3 text-center text-white">Voting Rounds</h4>
             <div className="space-y-2 max-h-32 overflow-y-auto">
               {rounds.map((round) => (
-                <div key={round.round} className="text-sm p-2 bg-gray-700 rounded">
+                <div key={round.round} className="text-sm p-2 bg-gray-800 rounded">
                   <span className="font-medium">Round {round.round}:</span>
                   {round.eliminated && (
                     <span className="text-red-600 dark:text-red-400 ml-2">
@@ -414,12 +414,12 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
         </a>
 
         {session.votingResults.tieBreaking?.isTieBreaker && (
-          <div className="mt-4 p-2 bg-orange-50 dark:bg-orange-900 border border-orange-200 dark:border-orange-700 rounded-lg">
-            <div className="text-orange-700 dark:text-orange-300 text-sm font-medium text-center">
+          <div className="mt-4 p-2 bg-orange-900 border border-orange-700 rounded-lg">
+            <div className="text-orange-300 text-sm font-medium text-center">
               🪙 took executive action for tie 🪙
             </div>
             {session.votingResults.tieBreaking.tiedMovies.length > 0 && (
-              <div className="text-orange-600 dark:text-orange-400 text-xs text-center mt-1">
+              <div className="text-orange-400 text-xs text-center mt-1">
                 Tied between: {session.votingResults.tieBreaking.tiedMovies.join(', ')}
               </div>
             )}
@@ -436,7 +436,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
       <p className="text-gray-400 mb-6">
         Once you lock votes, all movie rankings will be locked and no one can make changes.
       </p>
-              <div className="mb-6 p-4 bg-blue-900 rounded-lg">
+              <div className="mb-6 p-4 bg-blue-900 border border-blue-800 rounded-lg">
           <h4 className="font-semibold mb-2 text-white">How it works:</h4>
           <ol className="text-left text-sm text-gray-400 space-y-1">
           <li>1. Only your top 2 picks enter the voting pool</li>
@@ -473,7 +473,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-800 rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-gray-900 rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6">
           <div className="flex justify-end mb-6">
             <button
@@ -485,13 +485,13 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
           </div>
 
           {error && (
-            <div className="mb-4 p-3 bg-red-100 dark:bg-red-900 border border-red-300 dark:border-red-700 rounded-lg text-red-700 dark:text-red-300 text-sm">
+            <div className="mb-4 p-3 bg-red-900 border border-red-700 rounded-lg text-red-300 text-sm">
               {error}
             </div>
           )}
 
           {isLoading && (
-            <div className="absolute inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center">
+            <div className="absolute inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
             </div>
           )}

@@ -262,7 +262,7 @@ function Home() {
             </div>
 
             {sessionError && (
-              <div className="p-3 bg-red-100 dark:bg-red-900 border border-red-300 dark:border-red-700 rounded-lg text-red-700 dark:text-red-300 text-sm">
+              <div className="p-3 bg-red-900 border border-red-700 rounded-lg text-red-300 text-sm">
                 {sessionError}
               </div>
             )}
@@ -347,7 +347,7 @@ function Home() {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
-        <div className="flex-shrink-0 p-4 sm:p-6 md:p-8 md:pr-4 border-b border-gray-700">
+        <div className="flex-shrink-0 p-4 sm:p-6 md:p-8 md:pr-4 border-b border-gray-800">
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center space-x-3 sm:space-x-4 min-w-0">
               <h1 className="text-2xl sm:text-3xl font-bold text-white truncate">🎞️ Frame Rate</h1>
@@ -356,21 +356,21 @@ function Home() {
                   onClick={copySessionCode}
                   className={`hidden sm:flex items-center space-x-2 px-3 py-1 rounded-full transition-colors cursor-pointer flex-shrink-0 ${
                     justCopied 
-                      ? 'bg-green-200 dark:bg-green-700' 
-                      : 'bg-green-100 dark:bg-green-900 hover:bg-green-200 dark:hover:bg-green-800'
+                      ? 'bg-green-700' 
+                      : 'bg-green-900 hover:bg-green-800'
                   }`}
                   title={justCopied ? 'Copied link!' : 'Click to copy shareable link'}
                 >
-                  <code className="font-mono text-sm font-bold text-green-700 dark:text-green-300 tracking-wider">
+                  <code className="font-mono text-sm font-bold text-green-300 tracking-wider">
                     {sessionCode}
                   </code>
-                  <span className="text-green-600 dark:text-green-400">
-                    {justCopied ? '✓' : '📎'}
-                  </span>
-                </button>
-              )}
-            </div>
-            <div className="hidden md:flex items-center space-x-2 font-mono text-orange-600 dark:text-orange-400 flex-shrink-0">
+                                      <span className="text-green-400">
+                      {justCopied ? '✓' : '📎'}
+                    </span>
+                  </button>
+                )}
+              </div>
+              <div className="hidden md:flex items-center space-x-2 font-mono text-orange-400 flex-shrink-0">
               {sessionData && (
                 <ProfilePicture 
                   username={username}
@@ -389,7 +389,7 @@ function Home() {
               placeholder="Search for movies..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full p-3 border border-gray-600 bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-3 border border-gray-700 bg-gray-800 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
         </div>
@@ -419,7 +419,7 @@ function Home() {
 
       {/* Sidebar */}
       <div className={`
-        fixed md:relative top-0 right-0 h-full h-dvh w-80 sm:w-96 bg-gray-800 shadow-xl border-l border-gray-700 z-40
+        fixed md:relative top-0 right-0 h-full h-dvh w-80 sm:w-96 bg-gray-900 shadow-xl border-l border-gray-800 z-40
         transform transition-transform duration-300 ease-in-out flex-shrink-0
         ${sidebarOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
       `}>
@@ -443,15 +443,15 @@ function Home() {
                 onClick={copySessionCode}
                 className={`w-full flex items-center justify-center space-x-2 px-3 py-2 rounded-lg transition-colors cursor-pointer ${
                   justCopied 
-                    ? 'bg-green-200 dark:bg-green-700' 
-                    : 'bg-green-100 dark:bg-green-900 hover:bg-green-200 dark:hover:bg-green-800'
+                    ? 'bg-green-700' 
+                    : 'bg-green-900 hover:bg-green-800'
                 }`}
                 title={justCopied ? 'Copied link!' : 'Click to copy shareable link'}
               >
-                <code className="font-mono text-sm font-bold text-green-700 dark:text-green-300 tracking-wider">
+                <code className="font-mono text-sm font-bold text-green-300 tracking-wider">
                   {sessionCode}
                 </code>
-                <span className="text-green-600 dark:text-green-400">
+                <span className="text-green-400">
                   {justCopied ? '✓' : '📎'}
                 </span>
               </button>
@@ -485,7 +485,7 @@ function Home() {
                   {sessionData.participants
                     .filter(participant => participant.username !== username)
                     .map((participant) => (
-                    <div key={participant.username} className="border-l-2 border-gray-600 pl-3">
+                    <div key={participant.username} className="border-l-2 border-gray-700 pl-3">
                       <div className="flex items-center space-x-2 mb-2">
                         <ProfilePicture 
                           username={participant.username}
@@ -745,7 +745,7 @@ function DraggableMovieItem({ movie, index, onRemove, onMove, showDivider, isVot
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={`
-          flex items-center space-x-3 p-3 bg-gray-700 rounded-lg transition-all
+          flex items-center space-x-3 p-3 bg-gray-800 rounded-lg transition-all
           ${isVotingLocked ? 'cursor-default' : 'cursor-move'}
           ${isDragging ? 'opacity-50' : ''}
           ${draggedOver ? 'bg-blue-100 dark:bg-blue-900 border-2 border-blue-300 dark:border-blue-600' : ''}
@@ -798,9 +798,9 @@ function DraggableMovieItem({ movie, index, onRemove, onMove, showDivider, isVot
         </button>
       </div>
       {showDivider && (
-        <div className="my-4 border-t border-gray-600 relative">
+        <div className="my-4 border-t border-gray-700 relative">
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="bg-gray-800 px-3 text-xs text-gray-400 font-medium">
+            <div className="bg-gray-900 px-3 text-xs text-gray-400 font-medium">
               Top 2 Picks
             </div>
           </div>

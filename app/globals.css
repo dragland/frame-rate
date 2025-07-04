@@ -5,7 +5,7 @@
 :root {
   --foreground-rgb: 255, 255, 255;
   --background-start-rgb: 0, 0, 0;
-  --background-end-rgb: 0, 0, 0;
+  --background-end-rgb: 17, 24, 39;
 }
 
 html, body {
@@ -35,7 +35,7 @@ body {
 }
 
 .movie-card {
-  @apply bg-gray-800 rounded-lg shadow-md overflow-hidden transition-transform hover:scale-105 flex flex-col h-full;
+  @apply bg-gray-900 border border-gray-800 rounded-lg shadow-md overflow-hidden transition-transform hover:scale-105 flex flex-col h-full;
 }
 
 .movie-grid {
