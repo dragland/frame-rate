@@ -513,7 +513,9 @@ function Home() {
                               <div className="flex items-center space-x-2 flex-1 min-w-0">
                                 <span className="text-orange-500">#{index + 1}</span>
                                 <span className="truncate">{movie.title}</span>
-                                <span className="text-gray-400">({movie.release_date?.split('-')[0]})</span>
+                                {movie.release_date?.split('-')[0] && (
+                                  <span className="text-gray-400">({movie.release_date.split('-')[0]})</span>
+                                )}
                               </div>
                               <div className="flex items-center space-x-1 text-xs flex-shrink-0">
                                 {movie.letterboxdRating ? (
@@ -597,7 +599,7 @@ interface MovieCardProps {
 }
 
 function MovieCard({ movie, onAdd, onRemove, isInList, isExpanded, onToggleDescription }: MovieCardProps) {
-  const year = movie.release_date?.split('-')[0] || 'Unknown';
+  const year = movie.release_date?.split('-')[0];
 
   return (
     <div className="movie-card">
@@ -609,59 +611,45 @@ function MovieCard({ movie, onAdd, onRemove, isInList, isExpanded, onToggleDescr
           height={750}
           className="w-full h-full object-contain"
         />
-        <div className="absolute top-2 right-2">
+        <div className="absolute bottom-2 right-2">
           {movie.letterboxdRating ? (
             <a
               href={movie.letterboxdRating.filmUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="bg-blue-600 bg-opacity-90 text-white px-2 py-1 rounded text-sm flex items-center hover:bg-blue-700 transition-colors space-x-1"
+              className="bg-blue-600 text-white px-3 py-2 rounded text-sm flex items-center space-x-2 hover:bg-blue-700 transition-colors"
             >
-              <span>⭐ {movie.letterboxdRating.rating.toFixed(1)}</span>
-              <span>{Math.round(movie.vote_average * 10)}%</span>
+              <span className="text-green-400">⭐ {movie.letterboxdRating.rating.toFixed(1)}</span>
+              <span className="text-yellow-400">{Math.round(movie.vote_average * 10)}%</span>
             </a>
           ) : (
-            <div className="bg-blue-600 bg-opacity-90 text-white px-2 py-1 rounded text-sm flex items-center">
-              {Math.round(movie.vote_average * 10)}%
+            <div className="bg-blue-600 text-white px-3 py-2 rounded text-sm flex items-center">
+              <span className="text-yellow-400">{Math.round(movie.vote_average * 10)}%</span>
             </div>
           )}
         </div>
       </div>
       <div className="p-4 flex flex-col h-full">
-        <h3 className="font-bold text-lg mb-1 line-clamp-2 text-white">{movie.title}</h3>
-        <p className="text-gray-300 text-sm mb-2">{year}</p>
-        <div className="flex items-center justify-between mb-2 text-sm">
-          <div className="flex items-center space-x-4">
-            {movie.letterboxdRating ? (
-              <a 
-                href={movie.letterboxdRating.filmUrl} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
-              >
-                ⭐ {movie.letterboxdRating.rating.toFixed(1)}
-              </a>
-            ) : (
-              <span className="text-gray-400 dark:text-gray-500">⭐ N/A</span>
-            )}
-            <span className="text-yellow-600 dark:text-yellow-400">
-              {Math.round(movie.vote_average * 10)}%
-            </span>
-          </div>
-          <button
-            onClick={isInList ? onRemove : onAdd}
-            className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold transition-colors ${
-              isInList 
-                ? 'bg-gray-500 hover:bg-gray-600' 
-                : 'bg-blue-500 hover:bg-blue-600'
-            }`}
-          >
-            {isInList ? '−' : '+'}
-          </button>
+        <div className="mb-2">
+          <h3 className="font-bold text-lg text-white line-clamp-2">
+            {movie.title}{year && <span className="text-gray-400 text-sm font-normal"> ({year})</span>}
+          </h3>
         </div>
+        
+        <button
+          onClick={isInList ? onRemove : onAdd}
+          className={`w-full px-4 py-2 rounded-lg text-sm font-semibold transition-colors mb-3 ${
+            isInList 
+              ? 'bg-gray-500 hover:bg-gray-600 text-white' 
+              : 'bg-green-600 hover:bg-green-700 text-white'
+          }`}
+        >
+          {isInList ? '− Cut' : '+ Nominate'}
+        </button>
+        
         <div 
           onClick={onToggleDescription}
-          className="cursor-pointer flex-grow"
+          className="cursor-pointer flex-grow mb-3"
         >
           <p className={`text-gray-300 text-sm ${isExpanded ? '' : 'line-clamp-3'}`}>
             {movie.overview}
@@ -672,12 +660,13 @@ function MovieCard({ movie, onAdd, onRemove, isInList, isExpanded, onToggleDescr
             </button>
           )}
         </div>
+        
         {movie.letterboxdRating && (
           <a
             href={movie.letterboxdRating.filmUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="block mt-3 bg-green-600 text-white py-2 px-4 rounded text-sm hover:bg-green-700 transition-colors text-center"
+            className="block bg-blue-600 text-white py-2 px-4 rounded text-sm hover:bg-blue-700 transition-colors text-center"
           >
             Letterboxd
           </a>
@@ -733,7 +722,7 @@ function DraggableMovieItem({ movie, index, onRemove, onMove, showDivider, isVot
     }
   };
 
-  const year = movie.release_date?.split('-')[0] || '';
+  const year = movie.release_date?.split('-')[0];
 
   return (
     <>
@@ -768,7 +757,7 @@ function DraggableMovieItem({ movie, index, onRemove, onMove, showDivider, isVot
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-sm truncate text-white">{movie.title}</div>
           <div className="text-xs text-gray-500 dark:text-gray-400 space-x-2">
-            <span>{year}</span>
+            {year && <span>{year}</span>}
             {movie.letterboxdRating ? (
               <a
                 href={movie.letterboxdRating.filmUrl}

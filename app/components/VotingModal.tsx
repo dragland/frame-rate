@@ -218,7 +218,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-sm truncate text-white">{nomination.title}</div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center space-x-2">
-                    <span>{nomination.release_date?.split('-')[0]}</span>
+                    {nomination.release_date?.split('-')[0] && <span>{nomination.release_date.split('-')[0]}</span>}
                     {nomination.letterboxdRating ? (
                       <a
                         href={nomination.letterboxdRating.filmUrl}
@@ -307,7 +307,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-sm truncate text-white">{movie.title}</div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 space-x-2">
-                    <span>{movie.release_date?.split('-')[0]}</span>
+                    {movie.release_date?.split('-')[0] && <span>{movie.release_date.split('-')[0]}</span>}
                     {movie.letterboxdRating ? (
                       <a
                         href={movie.letterboxdRating.filmUrl}
@@ -347,16 +347,23 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
     if (!session.votingResults) return null;
 
     const { winner, rounds } = session.votingResults;
+    const year = winner.release_date?.split('-')[0];
 
     return (
       <div className="text-center">
-        <div className="text-6xl mb-4">🥇</div>
-        
-        <h3 className="text-2xl font-bold mb-4 text-green-600 dark:text-green-400">
-          {winner.title} ({winner.release_date?.split('-')[0] || 'Unknown'})
-        </h3>
+        <div className="text-6xl mb-4">
+          {session.votingResults.tieBreaking?.isTieBreaker ? '🪙' : '🥇'}
+        </div>
         
         <div className="mb-6">
+          {/* Title and year above poster */}
+          <div className="mb-4">
+            <h3 className="text-2xl font-bold text-green-600 dark:text-green-400 line-clamp-2">
+              {winner.title}{year && <span className="text-gray-400 text-xl font-normal"> ({year})</span>}
+            </h3>
+          </div>
+          
+          {/* Poster with new rating overlay style */}
           <div className="relative w-48 h-72 mx-auto mb-4">
             <Image
               src={getImageUrl(winner.poster_path)}
@@ -365,24 +372,26 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
               className="object-cover rounded-lg shadow-lg"
               sizes="192px"
             />
-            <div className="absolute top-2 right-2">
+            {/* Updated rating overlay to match new card style */}
+            <div className="absolute bottom-2 right-2">
               {winner.letterboxdRating ? (
                 <a
                   href={winner.letterboxdRating.filmUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="bg-blue-600 bg-opacity-90 text-white px-2 py-1 rounded text-sm flex items-center hover:bg-blue-700 transition-colors space-x-1"
+                  className="bg-blue-600 text-white px-3 py-2 rounded text-sm flex items-center space-x-2 hover:bg-blue-700 transition-colors"
                 >
-                  <span>⭐ {winner.letterboxdRating.rating.toFixed(1)}</span>
-                  <span>{Math.round(winner.vote_average * 10)}%</span>
+                  <span className="text-green-400">⭐ {winner.letterboxdRating.rating.toFixed(1)}</span>
+                  <span className="text-yellow-400">{Math.round(winner.vote_average * 10)}%</span>
                 </a>
               ) : (
-                <div className="bg-blue-600 bg-opacity-90 text-white px-2 py-1 rounded text-sm flex items-center">
-                  {Math.round(winner.vote_average * 10)}%
+                <div className="bg-blue-600 text-white px-3 py-2 rounded text-sm flex items-center">
+                  <span className="text-yellow-400">{Math.round(winner.vote_average * 10)}%</span>
                 </div>
               )}
             </div>
           </div>
+          
           <p className="text-gray-400 text-sm max-w-md mx-auto">
             {winner.overview}
           </p>
@@ -408,23 +417,10 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
 
         <a
           href="plex://"
-          className="mt-6 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold inline-block"
+          className="mt-6 w-full bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold inline-block"
         >
           🎬 Watch Now
         </a>
-
-        {session.votingResults.tieBreaking?.isTieBreaker && (
-          <div className="mt-4 p-2 bg-orange-900 border border-orange-700 rounded-lg">
-            <div className="text-orange-300 text-sm font-medium text-center">
-              🪙 took executive action for tie 🪙
-            </div>
-            {session.votingResults.tieBreaking.tiedMovies.length > 0 && (
-              <div className="text-orange-400 text-xs text-center mt-1">
-                Tied between: {session.votingResults.tieBreaking.tiedMovies.join(', ')}
-              </div>
-            )}
-          </div>
-        )}
       </div>
     );
   };
