@@ -1,7 +1,16 @@
 # 🎞️ Frame Rate
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Now%20Showing-4CAF50?style=for-the-badge&logoColor=white)](https://frame-rate.onrender.com)
 
-Movie night voting app with ranked choice voting and group watch parties.
-   →  [frame-rate.onrender.com](https://frame-rate.onrender.com)
+Movie night voting app with ranked choice voting and group watch parties
+
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/52ba2235-006d-4a58-a7cf-8fcbe7d8f801" width="15%" />
+  <img src="https://github.com/user-attachments/assets/284c18ab-83b2-4e53-9adf-667ac748f761" width="15%" />
+  <img src="https://github.com/user-attachments/assets/ab736c39-a997-4de0-a065-3747e486c397" width="15%" />
+  <img src="https://github.com/user-attachments/assets/0f3548ff-52dc-4df7-aeb5-23e63943b4a6" width="15%" />
+  <img src="https://github.com/user-attachments/assets/70c4311f-5cea-4387-a366-a22fb26727ef" width="15%" />
+  <img src="https://github.com/user-attachments/assets/4e40a948-55ea-4447-91cd-84eadd20e330" width="15%" />
+</div>
 
 ## How It Works
 
@@ -36,16 +45,6 @@ Movie night voting app with ranked choice voting and group watch parties.
 
 **Redis is required for production** (group sessions are stored in Redis):
 
-**Option 1: Free Redis (Recommended)**
-1. Sign up at [upstash.com](https://upstash.com) (500K commands/month free)
-2. Create Redis database → Copy connection URL
-3. Set environment variables:
-   ```
-   TMDB_API_KEY=your_key_here
-   REDIS_URL=your_upstash_redis_url
-   ```
-
-**Option 2: Render Redis (~$7/month)**
 1. Add Redis service in Render dashboard
 2. Set environment variables:  
    ```
