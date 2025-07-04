@@ -142,10 +142,10 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
   const renderLockedPhase = () => (
     <div className="text-center">
       <div className="text-6xl mb-4">🔒</div>
-      <h3 className="text-xl font-semibold mb-4 dark:text-white">Rankings Locked!</h3>
-      <p className="text-gray-600 dark:text-gray-400 mb-6">
-        All movie rankings have been locked. Now it's time to eliminate movies.
-      </p>
+              <h3 className="text-xl font-semibold mb-4 text-white">Rankings Locked!</h3>
+              <p className="text-gray-400 mb-6">
+          All movie rankings have been locked. Now it's time to eliminate movies.
+        </p>
       <p className="text-sm text-orange-600 dark:text-orange-400 mb-6">
         Each person gets to veto one movie. Choose wisely!
       </p>
@@ -158,12 +158,12 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
   const renderVetoingPhase = () => (
     <div>
       <div className="text-center mb-6">
-        <h3 className="text-xl font-semibold mb-2 dark:text-white flex items-center justify-center space-x-2">
+        <h3 className="text-xl font-semibold mb-2 text-white flex items-center justify-center space-x-2">
           <span className="text-2xl">💀</span>
           <span>Veto Phase</span>
         </h3>
         {!hasUserVetoed && (
-          <p className="text-gray-600 dark:text-gray-400 text-sm">
+          <p className="text-gray-400 text-sm">
             Choose one movie to eliminate from the voting pool
           </p>
         )}
@@ -205,7 +205,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
             {remainingNominations.map((nomination) => (
               <div
                 key={nomination.nominationId}
-                className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer transition-all"
+                className="flex items-center space-x-3 p-3 bg-gray-700 rounded-lg hover:bg-gray-600 cursor-pointer transition-all"
                 onClick={() => handleVetoNomination(nomination.nominationId)}
               >
                 <Image
@@ -216,7 +216,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
                   className="rounded flex-shrink-0"
                 />
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-sm truncate dark:text-white">{nomination.title}</div>
+                  <div className="font-semibold text-sm truncate text-white">{nomination.title}</div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center space-x-2">
                     <span>{nomination.release_date?.split('-')[0]}</span>
                     {nomination.letterboxdRating ? (
@@ -255,7 +255,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
     <div>
       <div className="text-center mb-6">
         <div className="text-4xl mb-2">🎯</div>
-        <h3 className="text-xl font-semibold mb-2 dark:text-white">Cast final rankings</h3>
+        <h3 className="text-xl font-semibold mb-2 text-white">Cast final rankings</h3>
         
         {/* Final ranking progress */}
         <div className="mt-4 text-sm">
@@ -290,7 +290,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
                 onDragStart={(e) => handleDragStart(e, movie.id)}
                 onDragOver={handleDragOver}
                 onDrop={(e) => handleDrop(e, index)}
-                className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 cursor-move transition-all"
+                className="flex items-center space-x-3 p-3 bg-gray-700 rounded-lg hover:bg-gray-600 cursor-move transition-all"
               >
                 <div className="text-gray-400 dark:text-gray-500 flex flex-col space-y-0.5">
                   <div className="w-1.5 h-0.5 bg-current rounded-full"></div>
@@ -305,7 +305,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
                   className="rounded flex-shrink-0"
                 />
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-sm truncate dark:text-white">{movie.title}</div>
+                  <div className="font-semibold text-sm truncate text-white">{movie.title}</div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 space-x-2">
                     <span>{movie.release_date?.split('-')[0]}</span>
                     {movie.letterboxdRating ? (
@@ -383,17 +383,17 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
               )}
             </div>
           </div>
-          <p className="text-gray-600 dark:text-gray-400 text-sm max-w-md mx-auto">
+          <p className="text-gray-400 text-sm max-w-md mx-auto">
             {winner.overview}
           </p>
         </div>
 
         {rounds.length > 1 && (
           <div className="mt-6 text-left">
-            <h4 className="font-semibold mb-3 text-center dark:text-white">Voting Rounds</h4>
+            <h4 className="font-semibold mb-3 text-center text-white">Voting Rounds</h4>
             <div className="space-y-2 max-h-32 overflow-y-auto">
               {rounds.map((round) => (
-                <div key={round.round} className="text-sm p-2 bg-gray-50 dark:bg-gray-700 rounded">
+                <div key={round.round} className="text-sm p-2 bg-gray-700 rounded">
                   <span className="font-medium">Round {round.round}:</span>
                   {round.eliminated && (
                     <span className="text-red-600 dark:text-red-400 ml-2">
@@ -432,13 +432,13 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
   const renderRankingPhase = () => (
     <div className="text-center">
       <div className="text-6xl mb-4">🗳️</div>
-      <h3 className="text-xl font-semibold mb-4 dark:text-white">Ready to Vote?</h3>
-      <p className="text-gray-600 dark:text-gray-400 mb-6">
+      <h3 className="text-xl font-semibold mb-4 text-white">Ready to Vote?</h3>
+      <p className="text-gray-400 mb-6">
         Once you lock votes, all movie rankings will be locked and no one can make changes.
       </p>
-      <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900 rounded-lg">
-        <h4 className="font-semibold mb-2 dark:text-white">How it works:</h4>
-        <ol className="text-left text-sm text-gray-600 dark:text-gray-400 space-y-1">
+              <div className="mb-6 p-4 bg-blue-900 rounded-lg">
+          <h4 className="font-semibold mb-2 text-white">How it works:</h4>
+          <ol className="text-left text-sm text-gray-400 space-y-1">
           <li>1. Only your top 2 picks enter the voting pool</li>
           <li>2. Everyone picks one movie to eliminate</li>
           <li>3. Final rankings determine the winner</li>
@@ -473,12 +473,12 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-gray-800 rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6">
           <div className="flex justify-end mb-6">
             <button
               onClick={onClose}
-              className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+              className="text-gray-400 hover:text-gray-200"
             >
               ✕
             </button>
@@ -491,7 +491,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
           )}
 
           {isLoading && (
-            <div className="absolute inset-0 bg-white dark:bg-gray-800 bg-opacity-75 flex items-center justify-center">
+            <div className="absolute inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
             </div>
           )}

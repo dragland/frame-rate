@@ -242,10 +242,10 @@ function Home() {
 
   if (!isLoggedIn) {
     return (
-      <main className="h-screen h-dvh flex items-start sm:items-center justify-center p-4 sm:p-8 bg-gradient-to-br from-slate-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 overflow-hidden overscroll-none">
+      <main className="h-screen h-dvh flex items-start sm:items-center justify-center p-4 sm:p-8 bg-gradient-to-br from-black to-gray-900 overflow-hidden overscroll-none">
         <div className="max-w-md w-full flex flex-col justify-start sm:justify-center pt-4 sm:pt-0 pb-4 sm:pb-0 min-h-0 max-h-full overflow-hidden">
           <div className="text-center mb-4 sm:mb-8">
-            <h1 className="text-3xl sm:text-4xl font-bold dark:text-white text-gray-800">🎞️ Frame Rate</h1>
+            <h1 className="text-3xl sm:text-4xl font-bold text-white">🎞️ Frame Rate</h1>
           </div>
           
           <div className="space-y-3 sm:space-y-6 flex-shrink-0">
@@ -256,7 +256,7 @@ function Home() {
                 placeholder="letterboxd username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
-                className="w-full p-4 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-600 dark:text-white rounded-lg focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400 font-mono text-center lowercase placeholder:text-gray-400 placeholder:normal-case"
+                className="w-full p-4 bg-gray-900 border-2 border-gray-700 text-white rounded-lg focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400 font-mono text-center lowercase placeholder:text-gray-500 placeholder:normal-case"
                 required
               />
             </div>
@@ -287,7 +287,7 @@ function Home() {
                   value={joinCode}
                   onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                   maxLength={4}
-                  className="w-full p-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-center font-mono text-lg tracking-wider"
+                  className="w-full p-3 border border-gray-700 bg-gray-900 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-center font-mono text-lg tracking-wider"
                   required
                 />
                 <button
@@ -347,10 +347,10 @@ function Home() {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
-        <div className="flex-shrink-0 p-4 sm:p-6 md:p-8 md:pr-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex-shrink-0 p-4 sm:p-6 md:p-8 md:pr-4 border-b border-gray-700">
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center space-x-3 sm:space-x-4 min-w-0">
-              <h1 className="text-2xl sm:text-3xl font-bold dark:text-white truncate">🎞️ Frame Rate</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-white truncate">🎞️ Frame Rate</h1>
               {sessionCode && sessionMode !== 'solo' && (
                 <button
                   onClick={copySessionCode}
@@ -389,7 +389,7 @@ function Home() {
               placeholder="Search for movies..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full p-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-3 border border-gray-600 bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
         </div>
@@ -419,13 +419,13 @@ function Home() {
 
       {/* Sidebar */}
       <div className={`
-        fixed md:relative top-0 right-0 h-full h-dvh w-80 sm:w-96 bg-white dark:bg-gray-800 shadow-xl border-l dark:border-gray-700 z-40
+        fixed md:relative top-0 right-0 h-full h-dvh w-80 sm:w-96 bg-gray-800 shadow-xl border-l border-gray-700 z-40
         transform transition-transform duration-300 ease-in-out flex-shrink-0
         ${sidebarOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
       `}>
         <div className="p-4 sm:p-6 h-full overflow-y-auto flex flex-col">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold dark:text-white">
+            <h2 className="text-xl font-bold text-white">
               🍿 Movie Night {sessionData && sessionMode !== 'solo' ? `(${sessionData.participants.length})` : `(${myMovies.length})`}
             </h2>
             <button
@@ -485,14 +485,14 @@ function Home() {
                   {sessionData.participants
                     .filter(participant => participant.username !== username)
                     .map((participant) => (
-                    <div key={participant.username} className="border-l-2 border-gray-200 dark:border-gray-600 pl-3">
+                    <div key={participant.username} className="border-l-2 border-gray-600 pl-3">
                       <div className="flex items-center space-x-2 mb-2">
                         <ProfilePicture 
                           username={participant.username}
                           profilePicture={participant.profilePicture}
                           size="sm"
                         />
-                        <h4 className="font-medium text-sm dark:text-white">
+                        <h4 className="font-medium text-sm text-white">
                           {participant.username}
                         </h4>
                       </div>
@@ -628,8 +628,8 @@ function MovieCard({ movie, onAdd, onRemove, isInList, isExpanded, onToggleDescr
         </div>
       </div>
       <div className="p-4 flex flex-col h-full">
-        <h3 className="font-bold text-lg mb-1 line-clamp-2 dark:text-white">{movie.title}</h3>
-        <p className="text-gray-600 dark:text-gray-300 text-sm mb-2">{year}</p>
+        <h3 className="font-bold text-lg mb-1 line-clamp-2 text-white">{movie.title}</h3>
+        <p className="text-gray-300 text-sm mb-2">{year}</p>
         <div className="flex items-center justify-between mb-2 text-sm">
           <div className="flex items-center space-x-4">
             {movie.letterboxdRating ? (
@@ -663,7 +663,7 @@ function MovieCard({ movie, onAdd, onRemove, isInList, isExpanded, onToggleDescr
           onClick={onToggleDescription}
           className="cursor-pointer flex-grow"
         >
-          <p className={`text-gray-700 dark:text-gray-300 text-sm ${isExpanded ? '' : 'line-clamp-3'}`}>
+          <p className={`text-gray-300 text-sm ${isExpanded ? '' : 'line-clamp-3'}`}>
             {movie.overview}
           </p>
           {movie.overview && movie.overview.length > 150 && (
@@ -745,7 +745,7 @@ function DraggableMovieItem({ movie, index, onRemove, onMove, showDivider, isVot
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={`
-          flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg transition-all
+          flex items-center space-x-3 p-3 bg-gray-700 rounded-lg transition-all
           ${isVotingLocked ? 'cursor-default' : 'cursor-move'}
           ${isDragging ? 'opacity-50' : ''}
           ${draggedOver ? 'bg-blue-100 dark:bg-blue-900 border-2 border-blue-300 dark:border-blue-600' : ''}
@@ -766,7 +766,7 @@ function DraggableMovieItem({ movie, index, onRemove, onMove, showDivider, isVot
           className="rounded flex-shrink-0"
         />
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-sm truncate dark:text-white">{movie.title}</div>
+          <div className="font-semibold text-sm truncate text-white">{movie.title}</div>
           <div className="text-xs text-gray-500 dark:text-gray-400 space-x-2">
             <span>{year}</span>
             {movie.letterboxdRating ? (
@@ -798,9 +798,9 @@ function DraggableMovieItem({ movie, index, onRemove, onMove, showDivider, isVot
         </button>
       </div>
       {showDivider && (
-        <div className="my-4 border-t border-gray-300 dark:border-gray-600 relative">
+        <div className="my-4 border-t border-gray-600 relative">
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="bg-white dark:bg-gray-800 px-3 text-xs text-gray-500 dark:text-gray-400 font-medium">
+            <div className="bg-gray-800 px-3 text-xs text-gray-400 font-medium">
               Top 2 Picks
             </div>
           </div>
@@ -816,7 +816,7 @@ export default function Page() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Loading...</p>
+          <p className="text-gray-400">Loading...</p>
         </div>
       </div>
     }>
