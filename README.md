@@ -3,12 +3,14 @@
 Movie night voting app with ranked choice voting and group watch parties.
    →  [frame-rate.onrender.com](https://frame-rate.onrender.com)
 
-## Core Features
+## How It Works
 
-- **Movie Search**: TMDB integration with Letterboxd ratings
-- **Ranked Lists**: Drag & drop movie preferences
-- **Watch Parties**: Host/join sessions with 4-letter codes
-- **Mobile Responsive**: Touch-friendly interface
+- Sign in with `Letterboxd` & create watch party
+- Friends join session with 4-letter code
+- Everyone nominates 2+ films with TMDB search
+- Nominations are locked in & everyone casts 1 veto
+- Final nominations are rakned again to pick the winner
+
 
 ## Quick Start
 
@@ -52,13 +54,6 @@ Movie night voting app with ranked choice voting and group watch parties.
    ```
 
 Deploy: `npm ci && npm run build && npm start`
-
-## How It Works
-
-**🎬 Host**: Create session → Share 4-letter code  
-**🎉 Join**: Enter code → Add username → Start ranking  
-**📝 Rank**: Search movies → Drag to reorder → Auto-sync with group  
-**🗳️ Vote**: Lock preferences → See results (voting logic coming soon!)
 
 ## Tech Stack
 
