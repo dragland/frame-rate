@@ -9,7 +9,7 @@ Movie night voting app with ranked choice voting and group watch parties.
 - Friends join session with 4-letter code
 - Everyone nominates 2+ films with TMDB search
 - Nominations are locked in & everyone casts 1 veto
-- Final nominations are rakned again to pick the winner
+- Final nominations are ranked again to pick the winner
 
 
 ## Quick Start

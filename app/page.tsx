@@ -335,7 +335,7 @@ function Home() {
                 size="sm"
               />
             )}
-            <span>🍿 {sessionData && sessionMode !== 'solo' ? sessionData.participants.length : myMovies.length}</span>
+            <span>🍿 {sessionData && sessionMode !== 'solo' ? (sessionData.participants.length > 1 ? sessionData.participants.length : '') : myMovies.length}</span>
             {sessionCode && sessionMode !== 'solo' && (
               <span className="text-xs font-mono bg-green-600 px-1 rounded">
                 {sessionCode}
@@ -426,7 +426,7 @@ function Home() {
         <div className="p-4 sm:p-6 h-full overflow-y-auto flex flex-col">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-white">
-              🍿 Movie Night {sessionData && sessionMode !== 'solo' ? `(${sessionData.participants.length})` : `(${myMovies.length})`}
+              🍿 Movie Night {sessionData && sessionMode !== 'solo' ? (sessionData.participants.length > 1 ? `(${sessionData.participants.length})` : '') : `(${myMovies.length})`}
             </h2>
             <button
               onClick={() => setSidebarOpen(false)}
@@ -560,7 +560,9 @@ function Home() {
                   {sessionData?.votingPhase === 'vetoing' && '🔒 Join Voting'}
                   {sessionData?.votingPhase === 'finalRanking' && '🔒 Final Rankings'}
                   {sessionData?.votingPhase === 'results' && '🏆 See Results'}
-                  {sessionData?.votingPhase === 'ranking' && !canVote && 'Need 2 nominations'}
+                  {sessionData?.votingPhase === 'ranking' && !canVote && (
+                    myMovies.length < 2 ? 'Need 2 nominations' : 'Waiting for everyone\'s top 2'
+                  )}
                 </button>
               </div>
             )}
