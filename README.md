@@ -1,7 +1,7 @@
 # 🎞️ Frame Rate
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Now%20Showing-4CAF50?style=for-the-badge&logoColor=white)](https://frame-rate.onrender.com)
 
-Movie night voting app with ranked choice voting and group watch parties
+Movie night voting app with group session ranked choice
 <div align="center">
   <img src="https://github.com/user-attachments/assets/b2bbcda9-761e-4f34-ba5c-8d1c85afa713" width="15%" />
   <img src="https://github.com/user-attachments/assets/2bbd44ce-9522-482b-b1e1-5aeb26d6d060" width="15%" />
