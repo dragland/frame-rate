@@ -20,22 +20,6 @@ Movie night voting app with ranked choice voting and group watch parties
 - Nominations are locked in & everyone casts 1 veto
 - Final nominations are ranked again to pick the winner
 
-## Project Structure
-
-```
-app/
-├── components/          # React UI components
-├── api/sessions/        # Session management APIs
-├── api/search/         # TMDB movie search
-└── [code]/             # Dynamic session pages
-
-lib/
-├── voting.ts           # Ranked choice voting algo
-├── session.ts          # Session utilities
-├── tmdb.ts            # Movie database integration
-└── redis.ts           # Storage (Redis/in-memory)
-```
-
 ## Quick Start
 
 **Prerequisites**: [TMDB API key](https://www.themoviedb.org/settings/api)
@@ -68,6 +52,21 @@ lib/
    ```
 
 Deploy: `npm ci && npm run build && npm start`
+
+## Project Structure
+
+```
+app/
+├── components/        # React UI components
+├── api/sessions/      # Session management APIs
+├── api/search/        # TMDB movie search
+└── [code]/            # Dynamic session pages
+lib/
+├── voting.ts          # Ranked choice voting algo
+├── session.ts         # Session utilities
+├── tmdb.ts            # Movie database integration
+└── redis.ts           # Storage (Redis/in-memory)
+```
 
 ## Tech Stack
 

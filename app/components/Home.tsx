@@ -9,6 +9,7 @@ import { Session } from '../../lib/types';
 import { canStartVoting, startVoting } from '../../lib/voting';
 import VotingModal from './VotingModal';
 import ProfilePicture from './ProfilePicture';
+import BackgroundInstructions from './BackgroundInstructions';
 import Image from 'next/image';
 
 type SessionMode = 'solo' | 'host' | 'guest';
@@ -427,12 +428,19 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
           </div>
         </div>
 
-        <div className="flex-1 p-4 sm:p-6 md:p-8 md:pr-4 overflow-y-auto">
+        <div className="flex-1 p-4 sm:p-6 md:p-8 md:pr-4 overflow-y-auto relative">
           {isLoading && (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
             </div>
           )}
+
+          <BackgroundInstructions 
+            isVisible={!searchQuery.trim() && searchResults.length === 0 && !isLoading}
+            sessionCode={sessionCode}
+            onCopySessionCode={copySessionCode}
+            justCopied={justCopied}
+          />
 
           <div className="movie-grid">
             {searchResults.map((movie) => (
@@ -504,7 +512,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
               ))}
               {myMovies.length === 0 && (
                 <p className="text-gray-500 dark:text-gray-400 text-center py-8">
-                  Search and add movies for movie night
+                  Nominations
                 </p>
               )}
             </div>
