@@ -21,29 +21,24 @@ export default function BackgroundInstructions({
     <div className="mb-8 opacity-50 flex justify-center">
       <div className="max-w-md w-full">
         <div className="space-y-3 text-gray-400 text-sm">
-          <ul className="space-y-2 text-left">
-            <li className="flex items-center space-x-3">
-              <span className="text-blue-400">🔗</span>
+          <ul className="space-y-2">
+            <li className="flex items-center justify-center">
               <span>Share code to start a movie night</span>
             </li>
             
-            <li className="flex items-center space-x-3">
-              <span className="text-orange-400">🎬</span>
+            <li className="flex items-center justify-center">
               <span>Search & nominate your top films</span>
             </li>
             
-            <li className="flex items-center space-x-3">
-              <span className="text-yellow-400">🔒</span>
+            <li className="flex items-center justify-center">
               <span>Lock in everyone's top 2 picks</span>
             </li>
             
-            <li className="flex items-center space-x-3">
-              <span className="text-red-400">✋</span>
+            <li className="flex items-center justify-center">
               <span>Veto & rank the final films</span>
             </li>
             
-            <li className="flex items-center space-x-3">
-              <span className="text-green-400">🍿</span>
+            <li className="flex items-center justify-center">
               <span>Enjoy your movie night together!</span>
             </li>
           </ul>
