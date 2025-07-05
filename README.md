@@ -2,14 +2,13 @@
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Now%20Showing-4CAF50?style=for-the-badge&logoColor=white)](https://frame-rate.onrender.com)
 
 Movie night voting app with ranked choice voting and group watch parties
-
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/52ba2235-006d-4a58-a7cf-8fcbe7d8f801" width="15%" />
-  <img src="https://github.com/user-attachments/assets/6a124378-ef99-4516-b664-2df812a4683e" width="15%" />
-  <img src="https://github.com/user-attachments/assets/da4babc2-ad84-496c-873f-191d5d89bce7" width="15%" />
-  <img src="https://github.com/user-attachments/assets/758bb4aa-b108-47c8-90de-00422ed07a80" width="15%" />
-  <img src="https://github.com/user-attachments/assets/dc5567bc-34bd-4c06-a5c6-66f112893890" width="15%" />
-  <img src="https://github.com/user-attachments/assets/ccd4e047-24c1-4a56-8f3b-9dffb3bdb3f7" width="15%" />
+  <img src="https://github.com/user-attachments/assets/b2bbcda9-761e-4f34-ba5c-8d1c85afa713" width="15%" />
+  <img src="https://github.com/user-attachments/assets/2bbd44ce-9522-482b-b1e1-5aeb26d6d060" width="15%" />
+  <img src="https://github.com/user-attachments/assets/c4c05cc6-1190-4d1c-8027-38b4158d3dfe" width="15%" />
+  <img src="https://github.com/user-attachments/assets/a2492296-78fa-4c0b-9b6b-23a2614a043f" width="15%" />
+  <img src="https://github.com/user-attachments/assets/9440fc3f-bb87-4fd7-ad26-d1d04ffadb9a" width="15%" />
+  <img src="https://github.com/user-attachments/assets/ee20a779-6c93-4442-b09a-30a1cc2a8b63" width="15%" />
 </div>
 
 ## How It Works
