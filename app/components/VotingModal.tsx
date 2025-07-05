@@ -169,38 +169,33 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
         )}
         
         {/* Veto progress with profile pictures */}
-        {!hasUserVetoed && (
-          <div className="mt-4">
-            <div className="flex justify-center items-center space-x-1 flex-wrap gap-1">
-              {session.participants.map((participant) => (
-                <div
-                  key={participant.username}
-                  className={`relative ${participant.hasVoted ? 'opacity-100' : 'opacity-40'}`}
-                  title={participant.hasVoted ? `${participant.username} - Voted` : `${participant.username} - Waiting`}
-                >
-                  <ProfilePicture 
-                    username={participant.username}
-                    profilePicture={participant.profilePicture}
-                    size="sm"
-                  />
-                  {participant.hasVoted && (
-                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border border-gray-900 flex items-center justify-center">
-                      <span className="text-[8px] text-white">✓</span>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+        <div className="mt-4">
+          <div className="flex justify-center items-center space-x-1 flex-wrap gap-1">
+            {session.participants.map((participant) => (
+              <div
+                key={participant.username}
+                className={`relative ${participant.hasVoted ? 'opacity-100' : 'opacity-40'}`}
+                title={participant.hasVoted ? `${participant.username} - Voted` : `${participant.username} - Waiting`}
+              >
+                <ProfilePicture 
+                  username={participant.username}
+                  profilePicture={participant.profilePicture}
+                  size="sm"
+                />
+                {participant.hasVoted && (
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border border-gray-900 flex items-center justify-center">
+                    <span className="text-[8px] text-white">✓</span>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
-        )}
+        </div>
       </div>
 
       {hasUserVetoed ? (
         <div className="text-center py-8">
-          <div className="text-green-600 dark:text-green-400 mb-2">✓ Vetoed "{vetoedMovies.find(m => m.id === userVetoedMovie)?.title || 'Unknown'}"</div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">
-            Waiting for others to complete their vetoes...
-          </div>
+          <div className="text-green-600 dark:text-green-400">✓ Vetoed "{vetoedMovies.find(m => m.id === userVetoedMovie)?.title || 'Unknown'}"</div>
         </div>
       ) : (
         <div>
@@ -257,8 +252,15 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
   const renderFinalRankingPhase = () => (
     <div>
       <div className="text-center mb-6">
-        <div className="text-4xl mb-2">🎯</div>
-        <h3 className="text-xl font-semibold mb-2 text-white">Cast final rankings</h3>
+        <h3 className="text-xl font-semibold mb-2 text-white flex items-center justify-center space-x-2">
+          <span className="text-2xl">🎯</span>
+          <span>Ranked Choice</span>
+        </h3>
+        {!hasUserFinalRanked && (
+          <p className="text-gray-400 text-sm">
+            Order films for final vote
+          </p>
+        )}
         
         {/* Final ranking progress with profile pictures */}
         <div className="mt-4">
@@ -290,10 +292,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
 
       {hasUserFinalRanked ? (
         <div className="text-center py-8">
-          <div className="text-green-600 dark:text-green-400 mb-2">✓ You have completed your final rankings</div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">
-            Waiting for others to finish their final rankings...
-          </div>
+          <div className="text-green-600 dark:text-green-400">✓ Rankings locked in!</div>
         </div>
       ) : (
         <div>
