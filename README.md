@@ -5,11 +5,11 @@ Movie night voting app with ranked choice voting and group watch parties
 
 <div align="center">
   <img src="https://github.com/user-attachments/assets/52ba2235-006d-4a58-a7cf-8fcbe7d8f801" width="15%" />
-  <img src="https://github.com/user-attachments/assets/284c18ab-83b2-4e53-9adf-667ac748f761" width="15%" />
-  <img src="https://github.com/user-attachments/assets/ab736c39-a997-4de0-a065-3747e486c397" width="15%" />
-  <img src="https://github.com/user-attachments/assets/0f3548ff-52dc-4df7-aeb5-23e63943b4a6" width="15%" />
-  <img src="https://github.com/user-attachments/assets/70c4311f-5cea-4387-a366-a22fb26727ef" width="15%" />
-  <img src="https://github.com/user-attachments/assets/4e40a948-55ea-4447-91cd-84eadd20e330" width="15%" />
+  <img src="https://github.com/user-attachments/assets/6a124378-ef99-4516-b664-2df812a4683e" width="15%" />
+  <img src="https://github.com/user-attachments/assets/da4babc2-ad84-496c-873f-191d5d89bce7" width="15%" />
+  <img src="https://github.com/user-attachments/assets/758bb4aa-b108-47c8-90de-00422ed07a80" width="15%" />
+  <img src="https://github.com/user-attachments/assets/dc5567bc-34bd-4c06-a5c6-66f112893890" width="15%" />
+  <img src="https://github.com/user-attachments/assets/ccd4e047-24c1-4a56-8f3b-9dffb3bdb3f7" width="15%" />
 </div>
 
 ## How It Works
