@@ -168,19 +168,28 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
           </p>
         )}
         
-        {/* Veto progress - only show if user hasn't vetoed yet */}
+        {/* Veto progress with profile pictures */}
         {!hasUserVetoed && (
-          <div className="mt-4 text-sm">
-            <div className="text-gray-500 dark:text-gray-400">
-              Waiting on {session.participants.length - session.participants.filter(p => p.hasVoted).length} / {session.participants.length}
-            </div>
-            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
-              <div 
-                className="bg-red-500 h-2 rounded-full transition-all duration-300"
-                style={{ 
-                  width: `${(session.participants.filter(p => p.hasVoted).length / session.participants.length) * 100}%` 
-                }}
-              />
+          <div className="mt-4">
+            <div className="flex justify-center items-center space-x-1 flex-wrap gap-1">
+              {session.participants.map((participant) => (
+                <div
+                  key={participant.username}
+                  className={`relative ${participant.hasVoted ? 'opacity-100' : 'opacity-40'}`}
+                  title={participant.hasVoted ? `${participant.username} - Voted` : `${participant.username} - Waiting`}
+                >
+                  <ProfilePicture 
+                    username={participant.username}
+                    profilePicture={participant.profilePicture}
+                    size="sm"
+                  />
+                  {participant.hasVoted && (
+                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border border-gray-900 flex items-center justify-center">
+                      <span className="text-[8px] text-white">✓</span>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -251,18 +260,30 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
         <div className="text-4xl mb-2">🎯</div>
         <h3 className="text-xl font-semibold mb-2 text-white">Cast final rankings</h3>
         
-        {/* Final ranking progress */}
-        <div className="mt-4 text-sm">
-          <div className="text-gray-500 dark:text-gray-400">
-            Waiting on {session.participants.length - session.participants.filter(p => p.finalMovies && p.finalMovies.length > 0).length} / {session.participants.length}
-          </div>
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
-            <div 
-              className="bg-green-500 h-2 rounded-full transition-all duration-300"
-              style={{ 
-                width: `${(session.participants.filter(p => p.finalMovies && p.finalMovies.length > 0).length / session.participants.length) * 100}%` 
-              }}
-            />
+        {/* Final ranking progress with profile pictures */}
+        <div className="mt-4">
+          <div className="flex justify-center items-center space-x-1 flex-wrap gap-1">
+            {session.participants.map((participant) => {
+              const hasCompleted = participant.finalMovies && participant.finalMovies.length > 0;
+              return (
+                <div
+                  key={participant.username}
+                  className={`relative ${hasCompleted ? 'opacity-100' : 'opacity-40'}`}
+                  title={hasCompleted ? `${participant.username} - Completed` : `${participant.username} - Waiting`}
+                >
+                  <ProfilePicture 
+                    username={participant.username}
+                    profilePicture={participant.profilePicture}
+                    size="sm"
+                  />
+                  {hasCompleted && (
+                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border border-gray-900 flex items-center justify-center">
+                      <span className="text-[8px] text-white">✓</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -391,6 +412,25 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
           </p>
         </div>
 
+        {/* Watch Party Group Photo */}
+        <div className="mb-4">
+          <div className="flex justify-center items-center space-x-1 flex-wrap gap-1">
+            {session.participants.map((participant) => (
+              <div
+                key={participant.username}
+                className="relative"
+                title={participant.username}
+              >
+                <ProfilePicture 
+                  username={participant.username}
+                  profilePicture={participant.profilePicture}
+                  size="md"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
         {rounds.length > 1 && (
           <div className="mt-6 text-left">
             <h4 className="font-semibold mb-3 text-center text-white">Voting Rounds</h4>
@@ -411,7 +451,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
 
         <a
           href="plex://"
-          className="mt-6 w-full bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold inline-block"
+          className="mt-4 w-full bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold inline-block"
         >
           🎬 Watch Now
         </a>
