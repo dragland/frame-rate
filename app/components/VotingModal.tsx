@@ -412,25 +412,6 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
           </p>
         </div>
 
-        {/* Watch Party Group Photo */}
-        <div className="mb-4">
-          <div className="flex justify-center items-center space-x-1 flex-wrap gap-1">
-            {session.participants.map((participant) => (
-              <div
-                key={participant.username}
-                className="relative"
-                title={participant.username}
-              >
-                <ProfilePicture 
-                  username={participant.username}
-                  profilePicture={participant.profilePicture}
-                  size="md"
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-
         {rounds.length > 1 && (
           <div className="mt-6 text-left">
             <h4 className="font-semibold mb-3 text-center text-white">Voting Rounds</h4>
@@ -451,9 +432,24 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
 
         <a
           href="plex://"
-          className="mt-4 w-full bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold inline-block"
+          className="mt-4 w-full bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold inline-block flex items-center justify-center space-x-2"
         >
-          🎬 Watch Now
+          <div className="flex items-center space-x-1">
+            {session.participants.map((participant, index) => (
+              <div
+                key={participant.username}
+                className="relative"
+                title={participant.username}
+              >
+                <ProfilePicture 
+                  username={participant.username}
+                  profilePicture={participant.profilePicture}
+                  size="sm"
+                />
+              </div>
+            ))}
+          </div>
+          <span>Show Time!</span>
         </a>
       </div>
     );
