@@ -298,7 +298,9 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
       ) : (
         <div>
           <div className="space-y-2 max-h-96 overflow-y-auto mb-4">
-            {finalMovies.map((movie, index) => (
+            {finalMovies.map((movie, index) => {
+              const year = movie.release_date?.split('-')[0];
+              return (
               <div
                 key={movie.id}
                 draggable
@@ -322,7 +324,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-sm truncate text-white">{movie.title}</div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 space-x-2">
-                    {movie.release_date?.split('-')[0] && <span>{movie.release_date.split('-')[0]}</span>}
+                    {year && <span>{year}</span>}
                     {movie.runtime && <span>• {formatRuntime(movie.runtime)}</span>}
                     {movie.letterboxdRating ? (
                       <a
@@ -344,7 +346,8 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
                   #{index + 1}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
           
           <button
