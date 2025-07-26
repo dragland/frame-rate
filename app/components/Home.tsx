@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { searchMovies, Movie, getImageUrl } from '../../lib/tmdb';
+import { searchMovies, Movie, getImageUrl, getMovieDetails, formatRuntime } from '../../lib/tmdb';
 import { getLetterboxdRating } from '../../lib/letterboxd';
 import { createSession, joinSession, updateMovies, getSession, leaveSession, debounce } from '../../lib/session';
 import { Session } from '../../lib/types';
@@ -33,6 +33,9 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
   const [joinCode, setJoinCode] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Movie[]>([]);
+  const [totalMoviesShown, setTotalMoviesShown] = useState(0);
+  const [hasMoreResults, setHasMoreResults] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [myMovies, setMyMovies] = useState<Movie[]>(
     initialSessionData && initialUsername 
       ? initialSessionData.participants.find(p => p.username === initialUsername)?.movies || []
@@ -104,24 +107,98 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
   const handleSearch = async (query: string) => {
     if (!query.trim()) {
       setSearchResults([]);
+      setTotalMoviesShown(0);
+      setHasMoreResults(false);
       return;
     }
     
     setIsLoading(true);
+    setTotalMoviesShown(5);
+    setHasMoreResults(false);
+    
     try {
-      const results = await searchMovies(query);
-      const moviesWithLetterboxd = await Promise.all(
+      const results = await searchMovies(query, 1);
+      const moviesWithEnhancedData = await Promise.all(
         results.results.slice(0, 5).map(async (movie) => {
-          const letterboxdRating = await getLetterboxdRating(movie.id);
-          return { ...movie, letterboxdRating };
+          const [letterboxdRating, movieDetails] = await Promise.all([
+            getLetterboxdRating(movie.id),
+            getMovieDetails(movie.id)
+          ]);
+          return { 
+            ...movie, 
+            letterboxdRating,
+            runtime: movieDetails?.runtime,
+            director: movieDetails?.director
+          };
         })
       );
-      setSearchResults(moviesWithLetterboxd);
+      setSearchResults(moviesWithEnhancedData);
+      
+      // Check if there are more results available
+      setHasMoreResults(results.total_results > 5);
     } catch (error) {
       console.error('Search failed:', error);
       setSearchResults([]);
+      setTotalMoviesShown(0);
     }
     setIsLoading(false);
+  };
+
+  const loadMoreResults = async () => {
+    if (!searchQuery.trim() || isLoadingMore) return;
+    
+    setIsLoadingMore(true);
+    
+    try {
+      // Simple approach: fetch pages until we have enough movies
+      let allFetchedMovies: any[] = [];
+      let page = 1;
+      
+      // Keep fetching pages until we have more than totalMoviesShown
+      while (allFetchedMovies.length <= totalMoviesShown) {
+        const results = await searchMovies(searchQuery, page);
+        allFetchedMovies = [...allFetchedMovies, ...results.results];
+        page++;
+        
+        // Break if this was the last page
+        if (results.results.length === 0 || page > results.total_pages) {
+          break;
+        }
+      }
+      
+      // Get the next 5 movies we haven't shown yet
+      const nextMovies = allFetchedMovies.slice(totalMoviesShown, totalMoviesShown + 5);
+      
+      if (nextMovies.length > 0) {
+        // Process the movies with enhanced data
+        const moviesWithEnhancedData = await Promise.all(
+          nextMovies.map(async (movie) => {
+            const [letterboxdRating, movieDetails] = await Promise.all([
+              getLetterboxdRating(movie.id),
+              getMovieDetails(movie.id)
+            ]);
+            return { 
+              ...movie, 
+              letterboxdRating,
+              runtime: movieDetails?.runtime,
+              director: movieDetails?.director
+            };
+          })
+        );
+        
+        setSearchResults(prev => [...prev, ...moviesWithEnhancedData]);
+        setTotalMoviesShown(totalMoviesShown + moviesWithEnhancedData.length);
+        
+        // Check if there are more results
+        setHasMoreResults(allFetchedMovies.length > totalMoviesShown + moviesWithEnhancedData.length);
+      } else {
+        setHasMoreResults(false);
+      }
+    } catch (error) {
+      console.error('Load more failed:', error);
+    }
+    
+    setIsLoadingMore(false);
   };
 
   const debouncedUpdateSession = useCallback(
@@ -454,6 +531,27 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
                 onToggleDescription={() => toggleDescription(movie.id)}
               />
             ))}
+            
+            {hasMoreResults && (
+              <div className="movie-card flex items-center justify-center">
+                <button
+                  onClick={loadMoreResults}
+                  disabled={isLoadingMore}
+                  className="w-full h-full flex flex-col items-center justify-center space-y-4 text-gray-400 hover:text-white hover:bg-gray-800 transition-colors border-2 border-dashed border-gray-600 hover:border-gray-500 rounded-lg min-h-[400px]"
+                >
+                  {isLoadingMore ? (
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                  ) : (
+                    <>
+                      <div className="text-4xl">💿</div>
+                      <div className="text-center">
+                        <div className="font-semibold">Load More</div>
+                      </div>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -551,9 +649,12 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
                               <div className="flex items-center space-x-2 flex-1 min-w-0">
                                 <span className="text-orange-500">#{index + 1}</span>
                                 <span className="truncate">{movie.title}</span>
-                                {movie.release_date?.split('-')[0] && (
-                                  <span className="text-gray-400">({movie.release_date.split('-')[0]})</span>
-                                )}
+                                <div className="text-gray-400 text-xs space-x-1 flex-shrink-0">
+                                  {movie.release_date?.split('-')[0] && (
+                                    <span>({movie.release_date.split('-')[0]})</span>
+                                  )}
+                                  {movie.runtime && <span>• {formatRuntime(movie.runtime)}</span>}
+                                </div>
                               </div>
                               <div className="flex items-center space-x-1 text-xs flex-shrink-0">
                                 {movie.letterboxdRating ? (
@@ -668,9 +769,16 @@ function MovieCard({ movie, onAdd, onRemove, isInList, isExpanded, onToggleDescr
       </div>
       <div className="p-4 flex flex-col h-full">
         <div className="mb-2">
-          <h3 className="font-bold text-lg text-white line-clamp-2">
-            {movie.title}{year && <span className="text-gray-400 text-sm font-normal"> ({year})</span>}
+          <h3 className="font-bold text-lg text-white line-clamp-2 mb-1">
+            {movie.title}
           </h3>
+          {(year || movie.runtime || movie.director) && (
+            <div className="text-gray-400 text-sm space-x-2">
+              {year && <span>({year})</span>}
+              {movie.runtime && <span>• {formatRuntime(movie.runtime)}</span>}
+              {movie.director && <span>• {movie.director}</span>}
+            </div>
+          )}
         </div>
         
         <button
@@ -795,6 +903,7 @@ function DraggableMovieItem({ movie, index, onRemove, onMove, showDivider, isVot
           <div className="font-semibold text-sm truncate text-white">{movie.title}</div>
           <div className="text-xs text-gray-500 dark:text-gray-400 space-x-2">
             {year && <span>{year}</span>}
+            {movie.runtime && <span>• {formatRuntime(movie.runtime)}</span>}
             {movie.letterboxdRating ? (
               <a
                 href={movie.letterboxdRating.filmUrl}

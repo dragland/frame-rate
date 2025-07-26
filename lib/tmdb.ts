@@ -15,6 +15,8 @@ export interface Movie {
   vote_average: number;
   vote_count: number;
   genre_ids: number[];
+  runtime?: number; // in minutes
+  director?: string;
   letterboxdRating?: LetterboxdRating | null;
 }
 
@@ -25,12 +27,30 @@ export interface SearchResponse {
   total_results: number;
 }
 
+export const formatRuntime = (minutes: number | undefined): string | null => {
+  if (!minutes) return null;
+  return `${minutes}m`;
+};
+
 export const searchMovies = async (query: string, page = 1): Promise<SearchResponse> => {
   const response = await fetch(`/api/search?q=${encodeURIComponent(query)}&page=${page}`);
   if (!response.ok) {
     throw new Error('Search request failed');
   }
   return response.json();
+};
+
+export const getMovieDetails = async (movieId: number): Promise<Movie | null> => {
+  try {
+    const response = await fetch(`/api/movie/${movieId}`);
+    if (!response.ok) {
+      return null;
+    }
+    return response.json();
+  } catch (error) {
+    console.error(`Failed to fetch details for movie ${movieId}:`, error);
+    return null;
+  }
 };
 
 export const getImageUrl = (path: string | null): string => {
