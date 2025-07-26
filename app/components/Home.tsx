@@ -651,7 +651,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
                                 <span className="truncate">{movie.title}</span>
                                 <div className="text-gray-400 text-xs space-x-1 flex-shrink-0">
                                   {movie.release_date?.split('-')[0] && (
-                                    <span>({movie.release_date.split('-')[0]})</span>
+                                    <span>{movie.release_date.split('-')[0]}</span>
                                   )}
                                   {movie.runtime && <span>• {formatRuntime(movie.runtime)}</span>}
                                 </div>
@@ -774,7 +774,7 @@ function MovieCard({ movie, onAdd, onRemove, isInList, isExpanded, onToggleDescr
           </h3>
           {(year || movie.runtime || movie.director) && (
             <div className="text-gray-400 text-sm space-x-2">
-              {year && <span>({year})</span>}
+              {year && <span>{year}</span>}
               {movie.runtime && <span>• {formatRuntime(movie.runtime)}</span>}
               {movie.director && <span>• {movie.director}</span>}
             </div>
