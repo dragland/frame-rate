@@ -215,7 +215,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
                 />
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-sm truncate text-white">{nomination.title}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center space-x-2">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 space-x-2">
                     {nomination.release_date?.split('-')[0] && <span>{nomination.release_date.split('-')[0]}</span>}
                     {nomination.runtime && <span>• {formatRuntime(nomination.runtime)}</span>}
                     {nomination.letterboxdRating ? (
@@ -374,16 +374,16 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
         <div className="mb-6">
           {/* Movie info and title above poster */}
           <div className="mb-4">
+            <h3 className="text-2xl font-bold text-green-600 dark:text-green-400 line-clamp-2 mb-2">
+              {winner.title}
+            </h3>
             {(year || winner.runtime || winner.director) && (
-              <div className="text-gray-400 text-base space-x-2 mb-2">
+              <div className="text-gray-400 text-base space-x-2">
                 {year && <span>{year}</span>}
                 {winner.runtime && <span>• {formatRuntime(winner.runtime)}</span>}
                 {winner.director && <span>• {winner.director}</span>}
               </div>
             )}
-            <h3 className="text-2xl font-bold text-green-600 dark:text-green-400 line-clamp-2">
-              {winner.title}
-            </h3>
           </div>
           
           {/* Poster with new rating overlay style */}

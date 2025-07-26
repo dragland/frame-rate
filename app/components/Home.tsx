@@ -773,7 +773,7 @@ function MovieCard({ movie, onAdd, onRemove, isInList, isExpanded, onToggleDescr
             {movie.title}
           </h3>
           {(year || movie.runtime || movie.director) && (
-            <div className="text-gray-400 text-sm space-x-2">
+            <div className="text-xs text-gray-500 dark:text-gray-400 space-x-2">
               {year && <span>{year}</span>}
               {movie.runtime && <span>• {formatRuntime(movie.runtime)}</span>}
               {movie.director && <span>• {movie.director}</span>}
