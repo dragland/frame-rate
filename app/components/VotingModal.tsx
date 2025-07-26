@@ -217,6 +217,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
                   <div className="font-semibold text-sm truncate text-white">{nomination.title}</div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center space-x-2">
                     {nomination.release_date?.split('-')[0] && <span>{nomination.release_date.split('-')[0]}</span>}
+                    {nomination.runtime && <span>• {formatRuntime(nomination.runtime)}</span>}
                     {nomination.letterboxdRating ? (
                       <a
                         href={nomination.letterboxdRating.filmUrl}
@@ -375,7 +376,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
           <div className="mb-4">
             {(year || winner.runtime || winner.director) && (
               <div className="text-gray-400 text-base space-x-2 mb-2">
-                {year && <span>({year})</span>}
+                {year && <span>{year}</span>}
                 {winner.runtime && <span>• {formatRuntime(winner.runtime)}</span>}
                 {winner.director && <span>• {winner.director}</span>}
               </div>
