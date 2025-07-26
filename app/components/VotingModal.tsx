@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Session, VotingPhase } from '../../lib/types';
-import { Movie, getImageUrl } from '../../lib/tmdb';
+import { Movie, getImageUrl, formatRuntime } from '../../lib/tmdb';
 import { getAllMovies, getVetoedMovies, getRemainingMovies, getAllMovieNominations, getRemainingNominations, getVetoedNominations, startVoting, vetoMovie, vetoNomination, updateFinalMovies } from '../../lib/voting';
 import ProfilePicture from './ProfilePicture';
 import Image from 'next/image';
@@ -322,6 +322,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
                   <div className="font-semibold text-sm truncate text-white">{movie.title}</div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 space-x-2">
                     {movie.release_date?.split('-')[0] && <span>{movie.release_date.split('-')[0]}</span>}
+                    {movie.runtime && <span>• {formatRuntime(movie.runtime)}</span>}
                     {movie.letterboxdRating ? (
                       <a
                         href={movie.letterboxdRating.filmUrl}
@@ -370,10 +371,17 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
         </div>
         
         <div className="mb-6">
-          {/* Title and year above poster */}
+          {/* Movie info and title above poster */}
           <div className="mb-4">
+            {(year || winner.runtime || winner.director) && (
+              <div className="text-gray-400 text-base space-x-2 mb-2">
+                {year && <span>({year})</span>}
+                {winner.runtime && <span>• {formatRuntime(winner.runtime)}</span>}
+                {winner.director && <span>• {winner.director}</span>}
+              </div>
+            )}
             <h3 className="text-2xl font-bold text-green-600 dark:text-green-400 line-clamp-2">
-              {winner.title}{year && <span className="text-gray-400 text-xl font-normal"> ({year})</span>}
+              {winner.title}
             </h3>
           </div>
           
