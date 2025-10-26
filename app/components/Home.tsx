@@ -340,8 +340,20 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
   useEffect(() => {
     const joinParam = searchParams.get('join');
     if (joinParam && /^[A-Z]{4}$/.test(joinParam)) {
-      setJoinCode(joinParam);
-      setIsFromJoinUrl(true);
+      // Validate that the session exists before pre-filling
+      fetch(`/api/sessions/${joinParam}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            setJoinCode(joinParam);
+            setIsFromJoinUrl(true);
+          } else {
+            window.history.replaceState({}, '', '/');
+          }
+        })
+        .catch(() => {
+          window.history.replaceState({}, '', '/');
+        });
     }
   }, [searchParams]);
 
