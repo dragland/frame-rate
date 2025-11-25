@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import getRedisClient from '../../../../lib/redis';
 import { Session, SessionResponse } from '../../../../lib/types';
+import { SESSION_CONFIG } from '../../../../lib/constants';
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,21 +33,16 @@ export async function POST(request: NextRequest) {
     const originalParticipantCount = session.participants.length;
     session.participants = session.participants.filter(p => p.username !== username.trim());
     
-    // If no participants left, let the session expire naturally
+    // If no participants left, delete the session
     if (session.participants.length === 0) {
       await redis.del(sessionKey);
-      console.log(`🗑️ Session ${code} deleted - no participants remaining`);
     } else {
       // Update session in Redis
       await redis.setex(
         sessionKey,
-        24 * 60 * 60, // Reset TTL
+        SESSION_CONFIG.TTL_SECONDS,
         JSON.stringify(session)
       );
-      
-      if (originalParticipantCount > session.participants.length) {
-        console.log(`👋 ${username.trim()} left session ${code} (${session.participants.length} remaining)`);
-      }
     }
     
     return NextResponse.json<SessionResponse>({ 

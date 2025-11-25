@@ -1,5 +1,8 @@
 import { Movie } from './tmdb';
 
+// Re-export Movie for convenience
+export type { Movie };
+
 export type VotingPhase = 'ranking' | 'locked' | 'vetoing' | 'finalRanking' | 'results';
 
 export interface SessionParticipant {

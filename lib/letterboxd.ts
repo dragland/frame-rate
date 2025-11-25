@@ -17,7 +17,6 @@ export const getLetterboxdRating = async (tmdbId: number): Promise<LetterboxdRat
 
     return response.json();
   } catch (error) {
-    console.error('Failed to fetch Letterboxd rating:', error);
     return null;
   }
 };
@@ -36,7 +35,6 @@ export const validateLetterboxdProfile = async (username: string): Promise<Lette
     const profile: LetterboxdProfile = await response.json();
     return profile;
   } catch (error) {
-    console.error('Failed to validate Letterboxd profile:', error);
     return {
       username: username.trim().toLowerCase(),
       profilePicture: null,

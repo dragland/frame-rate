@@ -1,4 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import getRedisClient from '@/lib/redis';
+import { CACHE_CONFIG } from '@/lib/constants';
+
+interface LetterboxdRatingData {
+  rating: number;
+  ratingText: string;
+  filmUrl: string;
+  tmdbId: number;
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -8,7 +17,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'tmdbId parameter is required' }, { status: 400 });
   }
 
+  const redis = getRedisClient();
+  const cacheKey = `letterboxd:rating:${tmdbId}`;
+
   try {
+    // Check cache first
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      return NextResponse.json(JSON.parse(cached));
+    }
+
+    // Fetch from Letterboxd
     const url = `https://letterboxd.com/tmdb/${tmdbId}/`;
     const response = await fetch(url, {
       headers: {
@@ -21,16 +40,16 @@ export async function GET(request: NextRequest) {
     }
 
     const html = await response.text();
-    
+
     // Extract rating from Twitter meta tag using regex
     const ratingMetaMatch = html.match(/<meta name="twitter:data2" content="([^"]*)" \/>/);
-    
+
     if (!ratingMetaMatch || !ratingMetaMatch[1] || !ratingMetaMatch[1].includes('out of 5')) {
       return NextResponse.json({ error: 'Rating not found' }, { status: 404 });
     }
 
     const ratingMeta = ratingMetaMatch[1];
-    
+
     // Parse "3.79 out of 5" format
     const ratingMatch = ratingMeta.match(/^([\d.]+)\s+out of 5$/);
     if (!ratingMatch) {
@@ -38,13 +57,22 @@ export async function GET(request: NextRequest) {
     }
 
     const rating = parseFloat(ratingMatch[1]);
-    
-    return NextResponse.json({
+
+    const data: LetterboxdRatingData = {
       rating,
       ratingText: ratingMeta,
       filmUrl: response.url,
       tmdbId: parseInt(tmdbId)
-    });
+    };
+
+    // Cache the result for 24 hours
+    await redis.setex(
+      cacheKey,
+      CACHE_CONFIG.LETTERBOXD_RATING_TTL,
+      JSON.stringify(data)
+    );
+
+    return NextResponse.json(data);
   } catch (error) {
     console.error('Letterboxd scraping error:', error);
     return NextResponse.json({ error: 'Scraping failed' }, { status: 500 });

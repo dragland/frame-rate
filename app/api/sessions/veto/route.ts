@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import getRedisClient from '../../../../lib/redis';
 import { Session, VetoMovieRequest, SessionResponse } from '../../../../lib/types';
+import { SESSION_CONFIG } from '../../../../lib/constants';
 import { calculateRankedChoiceWinner, getRemainingMovies } from '../../../../lib/voting';
 
 export async function POST(request: NextRequest) {
@@ -66,31 +67,26 @@ export async function POST(request: NextRequest) {
         // Skip directly to results - there's only one movie left
         session.votingPhase = 'results';
         session.votingResults = calculateRankedChoiceWinner(session);
-        console.log(`🏆 Only one movie remains after vetoes for session ${code}. Winner: ${remainingMovies[0]?.title || 'Unknown'}`);
       } else {
         // Transition to final ranking phase
         session.votingPhase = 'finalRanking';
-        
+
         // Reset finalMovies for all participants
         session.participants.forEach(p => {
           p.finalMovies = undefined;
         });
-        
-        console.log(`🎯 All vetoes complete for session ${code}. Moving to final ranking phase.`);
       }
     }
     
     await redis.setex(
-      `session:${code.trim().toUpperCase()}`, 
-      24 * 60 * 60, 
+      `session:${code.trim().toUpperCase()}`,
+      24 * 60 * 60,
       JSON.stringify(session)
     );
-    
-    console.log(`❌ ${username} vetoed movie ${movieId} in session ${code}`);
-    
-    return NextResponse.json<SessionResponse>({ 
-      success: true, 
-      session 
+
+    return NextResponse.json<SessionResponse>({
+      success: true,
+      session
     });
     
   } catch (error) {

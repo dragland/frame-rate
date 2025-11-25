@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import getRedisClient from '../../../../lib/redis';
 import { Session, StartVotingRequest, SessionResponse } from '../../../../lib/types';
+import { SESSION_CONFIG } from '../../../../lib/constants';
 import { canStartVoting } from '../../../../lib/voting';
 
 export async function POST(request: NextRequest) {
@@ -55,16 +56,14 @@ export async function POST(request: NextRequest) {
     });
     
     await redis.setex(
-      `session:${code.trim().toUpperCase()}`, 
-      24 * 60 * 60, 
+      `session:${code.trim().toUpperCase()}`,
+      24 * 60 * 60,
       JSON.stringify(session)
     );
-    
-    console.log(`🗳️ Started voting for session ${code} by ${username}`);
-    
-    return NextResponse.json<SessionResponse>({ 
-      success: true, 
-      session 
+
+    return NextResponse.json<SessionResponse>({
+      success: true,
+      session
     });
     
   } catch (error) {

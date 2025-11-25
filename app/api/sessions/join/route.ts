@@ -1,55 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import getRedisClient from '../../../../lib/redis';
 import { Session, JoinSessionRequest, SessionResponse } from '../../../../lib/types';
-import { LetterboxdProfile } from '../../letterboxd/profile/route';
-
-const validateLetterboxdProfile = async (username: string): Promise<LetterboxdProfile> => {
-  try {
-    const profileUrl = `https://letterboxd.com/${username.toLowerCase()}/`;
-    const response = await fetch(profileUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-      }
-    });
-    
-    if (!response.ok) {
-      return { username, profilePicture: null, exists: false };
-    }
-    
-    const html = await response.text();
-    let profilePicture: string | null = null;
-    
-    const avatarPatterns = [
-      // Meta tags (most reliable for Letterboxd)
-      /<meta\s+property="og:image"\s+content="([^"]+)"/i,
-      /<meta\s+name="twitter:image"\s+content="([^"]+)"/i,
-      // Traditional img tags
-      /<img[^>]+class="[^"]*avatar[^"]*"[^>]+src="([^"]+)"/i,
-      /<img[^>]+src="([^"]+)"[^>]+class="[^"]*avatar[^"]*"/i,
-      /<img[^>]+class="[^"]*profile-avatar[^"]*"[^>]+src="([^"]+)"/i,
-      /<img[^>]+src="([^"]+)"[^>]+class="[^"]*profile-avatar[^"]*"/i,
-      // Background images
-      /<div[^>]+class="[^"]*avatar[^"]*"[^>]*style="[^"]*background-image:\s*url\(([^)]+)\)/i
-    ];
-    
-    for (const pattern of avatarPatterns) {
-      const match = html.match(pattern);
-      if (match && match[1]) {
-        profilePicture = match[1].replace(/['"]/g, '');
-        if (profilePicture.startsWith('//')) {
-          profilePicture = 'https:' + profilePicture;
-        } else if (profilePicture.startsWith('/')) {
-          profilePicture = 'https://letterboxd.com' + profilePicture;
-        }
-        break;
-      }
-    }
-    
-    return { username, profilePicture, exists: true };
-  } catch (error) {
-    return { username, profilePicture: null, exists: false };
-  }
-};
+import { validateLetterboxdProfile } from '../../../../lib/letterboxd-server';
+import { SESSION_CONFIG } from '../../../../lib/constants';
 
 export async function POST(request: NextRequest) {
   try {
@@ -67,12 +20,11 @@ export async function POST(request: NextRequest) {
     
     // Get existing session
     const sessionData = await redis.get(sessionKey);
-    
+
     if (!sessionData) {
-      console.log(`❌ Session ${code} not found`);
-      return NextResponse.json<SessionResponse>({ 
-        success: false, 
-        error: 'Session not found or expired' 
+      return NextResponse.json<SessionResponse>({
+        success: false,
+        error: 'Session not found or expired'
       }, { status: 404 });
     }
     
@@ -90,10 +42,9 @@ export async function POST(request: NextRequest) {
     
     if (existingParticipant) {
       // User is rejoining - just return success with existing session
-      console.log(`🔄 ${trimmedUsername} rejoined session ${code}`);
-      return NextResponse.json<SessionResponse>({ 
-        success: true, 
-        session 
+      return NextResponse.json<SessionResponse>({
+        success: true,
+        session
       });
     }
 
@@ -120,15 +71,13 @@ export async function POST(request: NextRequest) {
     // Update session in Redis
     await redis.setex(
       sessionKey,
-      24 * 60 * 60, // Reset TTL
+      SESSION_CONFIG.TTL_SECONDS,
       JSON.stringify(session)
     );
-    
-    console.log(`🎉 ${trimmedUsername} joined session ${code}`);
-    
-    return NextResponse.json<SessionResponse>({ 
-      success: true, 
-      session 
+
+    return NextResponse.json<SessionResponse>({
+      success: true,
+      session
     });
     
   } catch (error) {

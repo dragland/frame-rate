@@ -1,63 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import getRedisClient from '../../../../lib/redis';
 import { Session, CreateSessionRequest, SessionResponse } from '../../../../lib/types';
-import { LetterboxdProfile } from '../../letterboxd/profile/route';
+import { validateLetterboxdProfile } from '../../../../lib/letterboxd-server';
+import { SESSION_CONFIG } from '../../../../lib/constants';
 
 const generateSessionCode = (): string => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   let result = '';
-  for (let i = 0; i < 4; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  for (let i = 0; i < SESSION_CONFIG.CODE_LENGTH; i++) {
+    result += SESSION_CONFIG.CODE_CHARS.charAt(Math.floor(Math.random() * SESSION_CONFIG.CODE_CHARS.length));
   }
   return result;
-};
-
-const validateLetterboxdProfile = async (username: string): Promise<LetterboxdProfile> => {
-  try {
-    const profileUrl = `https://letterboxd.com/${username.toLowerCase()}/`;
-    const response = await fetch(profileUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-      }
-    });
-    
-    if (!response.ok) {
-      return { username, profilePicture: null, exists: false };
-    }
-    
-    const html = await response.text();
-    let profilePicture: string | null = null;
-    
-    const avatarPatterns = [
-      // Meta tags (most reliable for Letterboxd)
-      /<meta\s+property="og:image"\s+content="([^"]+)"/i,
-      /<meta\s+name="twitter:image"\s+content="([^"]+)"/i,
-      // Traditional img tags
-      /<img[^>]+class="[^"]*avatar[^"]*"[^>]+src="([^"]+)"/i,
-      /<img[^>]+src="([^"]+)"[^>]+class="[^"]*avatar[^"]*"/i,
-      /<img[^>]+class="[^"]*profile-avatar[^"]*"[^>]+src="([^"]+)"/i,
-      /<img[^>]+src="([^"]+)"[^>]+class="[^"]*profile-avatar[^"]*"/i,
-      // Background images
-      /<div[^>]+class="[^"]*avatar[^"]*"[^>]*style="[^"]*background-image:\s*url\(([^)]+)\)/i
-    ];
-    
-    for (const pattern of avatarPatterns) {
-      const match = html.match(pattern);
-      if (match && match[1]) {
-        profilePicture = match[1].replace(/['"]/g, '');
-        if (profilePicture.startsWith('//')) {
-          profilePicture = 'https:' + profilePicture;
-        } else if (profilePicture.startsWith('/')) {
-          profilePicture = 'https://letterboxd.com' + profilePicture;
-        }
-        break;
-      }
-    }
-    
-    return { username, profilePicture, exists: true };
-  } catch (error) {
-    return { username, profilePicture: null, exists: false };
-  }
 };
 
 export async function POST(request: NextRequest) {
@@ -79,7 +31,7 @@ export async function POST(request: NextRequest) {
     do {
       code = generateSessionCode();
       attempts++;
-      if (attempts > 10) {
+      if (attempts > SESSION_CONFIG.MAX_CODE_GENERATION_ATTEMPTS) {
         throw new Error('Failed to generate unique session code');
       }
     } while (await redis.exists(`session:${code}`));
@@ -99,24 +51,22 @@ export async function POST(request: NextRequest) {
         letterboxdExists: profile.exists,
       }],
       createdAt: now,
-      expiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000), // 24 hours
+      expiresAt: new Date(now.getTime() + SESSION_CONFIG.TTL_MS),
       isVotingOpen: false,
-      maxParticipants: 8,
+      maxParticipants: SESSION_CONFIG.MAX_PARTICIPANTS,
       votingPhase: 'ranking',
     };
-    
+
     // Store session in Redis with TTL
     await redis.setex(
-      `session:${code}`, 
-      24 * 60 * 60, // 24 hours TTL
+      `session:${code}`,
+      SESSION_CONFIG.TTL_SECONDS,
       JSON.stringify(session)
     );
-    
-    console.log(`✅ Created session ${code} for user ${username.trim()}`);
-    
-    return NextResponse.json<SessionResponse>({ 
-      success: true, 
-      session 
+
+    return NextResponse.json<SessionResponse>({
+      success: true,
+      session
     });
     
   } catch (error) {

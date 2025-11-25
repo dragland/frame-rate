@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import getRedisClient from '../../../../lib/redis';
 import { Session, UpdateMoviesRequest, SessionResponse } from '../../../../lib/types';
+import { SESSION_CONFIG } from '../../../../lib/constants';
 
 export async function PUT(request: NextRequest) {
   try {
@@ -58,18 +59,13 @@ export async function PUT(request: NextRequest) {
     // Update session in Redis
     await redis.setex(
       sessionKey,
-      24 * 60 * 60, // Reset TTL
+      SESSION_CONFIG.TTL_SECONDS,
       JSON.stringify(session)
     );
-    
-    // Only log significant updates to reduce console spam
-    if ((movies?.length || 0) % 5 === 0 || (movies?.length || 0) === 1) {
-      console.log(`📽️ ${username.trim()}: ${movies?.length || 0} movies`);
-    }
-    
-    return NextResponse.json<SessionResponse>({ 
-      success: true, 
-      session 
+
+    return NextResponse.json<SessionResponse>({
+      success: true,
+      session
     });
     
   } catch (error) {

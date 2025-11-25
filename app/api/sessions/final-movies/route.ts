@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import getRedisClient from '../../../../lib/redis';
 import { Session, UpdateFinalMoviesRequest, SessionResponse } from '../../../../lib/types';
+import { SESSION_CONFIG } from '../../../../lib/constants';
 import { calculateRankedChoiceWinner, getRemainingMovies } from '../../../../lib/voting';
 
 export async function POST(request: NextRequest) {
@@ -65,20 +66,17 @@ export async function POST(request: NextRequest) {
       // Calculate final results using final rankings
       session.votingPhase = 'results';
       session.votingResults = calculateRankedChoiceWinner(session);
-      console.log(`🏆 Final ranking complete for session ${code}. Winner: ${session.votingResults.winner.title}`);
     }
-    
+
     await redis.setex(
-      `session:${code.trim().toUpperCase()}`, 
-      24 * 60 * 60, 
+      `session:${code.trim().toUpperCase()}`,
+      24 * 60 * 60,
       JSON.stringify(session)
     );
-    
-    console.log(`🎯 ${username} completed final ranking in session ${code}`);
-    
-    return NextResponse.json<SessionResponse>({ 
-      success: true, 
-      session 
+
+    return NextResponse.json<SessionResponse>({
+      success: true,
+      session
     });
     
   } catch (error) {

@@ -100,7 +100,6 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
       setJustCopied(true);
       setTimeout(() => setJustCopied(false), 2000);
     } catch (err) {
-      console.error('Failed to copy session code:', err);
     }
   };
 
@@ -137,7 +136,6 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
       // Check if there are more results available
       setHasMoreResults(results.total_results > 5);
     } catch (error) {
-      console.error('Search failed:', error);
       setSearchResults([]);
       setTotalMoviesShown(0);
     }
@@ -195,7 +193,6 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
         setHasMoreResults(false);
       }
     } catch (error) {
-      console.error('Load more failed:', error);
     }
     
     setIsLoadingMore(false);
@@ -207,7 +204,6 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
         try {
           await updateMovies(sessionData.code, username, movies);
         } catch (error) {
-          console.error('Failed to update session:', error);
         }
       }
     }, 1000),
@@ -285,9 +281,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
     if (sessionData && sessionMode !== 'solo') {
       try {
         await leaveSession(sessionData.code, username);
-        console.log(`👋 Left session ${sessionData.code}`);
       } catch (error) {
-        console.error('Failed to leave session:', error);
       }
     }
     
@@ -317,7 +311,6 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
           }
         }
       } catch (error) {
-        console.error('Failed to poll session:', error);
       }
     };
     
