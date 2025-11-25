@@ -7,6 +7,7 @@ import { getLetterboxdRating } from '../../lib/letterboxd';
 import { createSession, joinSession, updateMovies, getSession, leaveSession, debounce } from '../../lib/session';
 import { Session } from '../../lib/types';
 import { canStartVoting, startVoting } from '../../lib/voting';
+import { POLLING_CONFIG } from '../../lib/constants';
 import VotingModal from './VotingModal';
 import ProfilePicture from './ProfilePicture';
 import BackgroundInstructions from './BackgroundInstructions';
@@ -314,7 +315,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
       }
     };
     
-    const interval = setInterval(pollSession, 5000);
+    const interval = setInterval(pollSession, POLLING_CONFIG.SESSION_POLL_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [sessionData, sessionMode, username]);
 

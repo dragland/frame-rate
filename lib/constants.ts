@@ -45,7 +45,7 @@ export const MOVIE_CONFIG = {
  */
 export const POLLING_CONFIG = {
   /** Session polling interval in milliseconds */
-  SESSION_POLL_INTERVAL_MS: 5000,
+  SESSION_POLL_INTERVAL_MS: 1000,
 
   /** Search debounce delay in milliseconds */
   SEARCH_DEBOUNCE_MS: 300,
