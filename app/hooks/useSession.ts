@@ -1,7 +1,20 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Session, Movie } from '@/lib/types';
-import { getSession, updateMoviesInSession } from '@/lib/session';
+import { getSession, updateMovies } from '@/lib/session';
 import { POLLING_CONFIG, MOVIE_CONFIG } from '@/lib/constants';
+
+/**
+ * Check if SSE is supported in the current environment
+ */
+const isSSESupported = typeof window !== 'undefined' && 'EventSource' in window;
+
+/**
+ * SSE reconnection configuration
+ */
+const SSE_CONFIG = {
+  MAX_RECONNECT_ATTEMPTS: 3,
+  INITIAL_RECONNECT_DELAY_MS: 1000,
+};
 
 export interface UseSessionOptions {
   sessionCode: string;
@@ -22,7 +35,9 @@ export interface UseSessionReturn {
  * Custom hook to manage session state and real-time updates
  *
  * Features:
- * - Automatic polling every 5 seconds
+ * - Server-Sent Events (SSE) for instant updates when supported
+ * - Automatic polling fallback if SSE unavailable
+ * - SSE reconnection with exponential backoff
  * - Debounced movie updates (1 second)
  * - Handles session not found errors
  * - Synchronizes local state with server
@@ -44,6 +59,31 @@ export function useSession({
   const pendingMoviesRef = useRef<Movie[] | null>(null);
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Refs for SSE/polling handles to ensure proper cleanup
+  const eventSourceRef = useRef<EventSource | null>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Ref to access current myMovies without causing callback recreation
+  const myMoviesRef = useRef<Movie[]>(myMovies);
+  useEffect(() => { myMoviesRef.current = myMovies; }, [myMovies]);
+
+  /**
+   * Sync local movies with server state (only if different and no pending updates)
+   * Uses ref to avoid stale closure issues
+   */
+  const syncMoviesFromSession = useCallback((newSession: Session) => {
+    const myParticipant = newSession.participants.find(p => p.username === username);
+    if (myParticipant && !pendingMoviesRef.current) {
+      const serverMoviesJson = JSON.stringify(myParticipant.movies);
+      const localMoviesJson = JSON.stringify(myMoviesRef.current);
+
+      if (serverMoviesJson !== localMoviesJson) {
+        setMyMovies(myParticipant.movies || []);
+      }
+    }
+  }, [username]);
+
   /**
    * Poll the session from the server
    */
@@ -61,25 +101,11 @@ export function useSession({
 
       setSession(response.session);
       setError(null);
-
-      // Sync local movies with server (only if different)
-      const myParticipant = response.session.participants.find(
-        p => p.username === username
-      );
-
-      if (myParticipant) {
-        // Only update if server has different data AND we don't have pending updates
-        const serverMoviesJson = JSON.stringify(myParticipant.movies);
-        const localMoviesJson = JSON.stringify(myMovies);
-
-        if (serverMoviesJson !== localMoviesJson && !pendingMoviesRef.current) {
-          setMyMovies(myParticipant.movies || []);
-        }
-      }
+      syncMoviesFromSession(response.session);
     } catch (err) {
       setError('Failed to load session');
     }
-  }, [sessionCode, username, myMovies, onSessionNotFound]);
+  }, [sessionCode, onSessionNotFound, syncMoviesFromSession]);
 
   /**
    * Update my movies with debouncing
@@ -106,7 +132,7 @@ export function useSession({
 
       setIsUpdating(true);
       try {
-        const response = await updateMoviesInSession(
+        const response = await updateMovies(
           sessionCode,
           username,
           limitedMovies
@@ -128,25 +154,118 @@ export function useSession({
   }, [sessionCode, username]);
 
   /**
-   * Set up polling interval
+   * Handle incoming session data (from SSE or polling)
    */
-  useEffect(() => {
-    // Initial fetch
-    refreshSession();
+  const handleSessionUpdate = useCallback((newSession: Session) => {
+    setSession(newSession);
+    setError(null);
+    syncMoviesFromSession(newSession);
+  }, [syncMoviesFromSession]);
 
-    // Set up polling
-    const interval = setInterval(
+  /**
+   * Start polling as fallback when SSE is unavailable or fails
+   */
+  const startPolling = useCallback(() => {
+    if (pollIntervalRef.current) return; // Already polling
+
+    refreshSession();
+    pollIntervalRef.current = setInterval(
       refreshSession,
       POLLING_CONFIG.SESSION_POLL_INTERVAL_MS
     );
+  }, [refreshSession]);
+
+  /**
+   * Stop polling
+   */
+  const stopPolling = useCallback(() => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+  }, []);
+
+  /**
+   * Set up SSE connection with reconnection support
+   */
+  const connectSSE = useCallback((reconnectAttempts = 0) => {
+    // Clean up any existing connection
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+
+    const eventSource = new EventSource(`/api/sessions/${sessionCode}/stream`);
+    eventSourceRef.current = eventSource;
+
+    eventSource.onmessage = (event) => {
+      try {
+        const session: Session = JSON.parse(event.data);
+        handleSessionUpdate(session);
+      } catch (err) {
+        console.error('Failed to parse SSE message:', err);
+      }
+    };
+
+    eventSource.addEventListener('session-expired', () => {
+      setError('Session not found or expired');
+      if (onSessionNotFound) {
+        onSessionNotFound();
+      }
+      eventSource.close();
+      eventSourceRef.current = null;
+    });
+
+    eventSource.addEventListener('error', () => {
+      eventSource.close();
+      eventSourceRef.current = null;
+
+      // Try to reconnect with exponential backoff
+      if (reconnectAttempts < SSE_CONFIG.MAX_RECONNECT_ATTEMPTS) {
+        const delay = SSE_CONFIG.INITIAL_RECONNECT_DELAY_MS * Math.pow(2, reconnectAttempts);
+        console.warn(`SSE connection lost, reconnecting in ${delay}ms (attempt ${reconnectAttempts + 1}/${SSE_CONFIG.MAX_RECONNECT_ATTEMPTS})`);
+
+        reconnectTimeoutRef.current = setTimeout(() => {
+          connectSSE(reconnectAttempts + 1);
+        }, delay);
+      } else {
+        // Max reconnect attempts reached - fall back to polling
+        console.warn('SSE reconnection failed, falling back to polling');
+        startPolling();
+      }
+    });
+  }, [sessionCode, handleSessionUpdate, onSessionNotFound, startPolling]);
+
+  /**
+   * Set up SSE connection or polling fallback
+   */
+  useEffect(() => {
+    if (isSSESupported) {
+      connectSSE();
+    } else {
+      // SSE not supported - use polling
+      startPolling();
+    }
 
     return () => {
-      clearInterval(interval);
+      // Clean up SSE
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      // Clean up polling
+      stopPolling();
+      // Clean up reconnect timeout
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+      // Clean up debounce timeout
       if (updateTimeoutRef.current) {
         clearTimeout(updateTimeoutRef.current);
       }
     };
-  }, [refreshSession]);
+  }, [connectSSE, startPolling, stopPolling]);
 
   return {
     session,

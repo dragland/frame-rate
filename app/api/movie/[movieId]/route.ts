@@ -59,10 +59,10 @@ export async function GET(
       director
     };
 
-    // Cache the result for 12 hours
+    // Cache the result for 6 hours
     await redis.setex(
       cacheKey,
-      CACHE_CONFIG.TMDB_MOVIE_DETAILS_TTL,
+      CACHE_CONFIG.TTL,
       JSON.stringify(movieData)
     );
 

@@ -65,10 +65,10 @@ export async function GET(request: NextRequest) {
       tmdbId: parseInt(tmdbId)
     };
 
-    // Cache the result for 24 hours
+    // Cache the result for 6 hours
     await redis.setex(
       cacheKey,
-      CACHE_CONFIG.LETTERBOXD_RATING_TTL,
+      CACHE_CONFIG.TTL,
       JSON.stringify(data)
     );
 

@@ -105,10 +105,10 @@ export async function validateLetterboxdProfile(username: string): Promise<Lette
           exists: true
         };
 
-    // Cache the result for 7 days
+    // Cache the result for 6 hours
     await redis.setex(
       cacheKey,
-      CACHE_CONFIG.LETTERBOXD_PROFILE_TTL,
+      CACHE_CONFIG.TTL,
       JSON.stringify(profile)
     );
 

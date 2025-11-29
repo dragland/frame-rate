@@ -46,32 +46,6 @@ export const leaveSession = async (code: string, username: string): Promise<Sess
   return response.json();
 };
 
-export interface MovieDetails {
-  runtime?: number;
-  director?: string;
-  [key: string]: unknown;
-}
-
-export const getMovieDetails = async (movieId: number): Promise<MovieDetails | null> => {
-  try {
-    const response = await fetch(`/api/movie/${movieId}`);
-    if (!response.ok) {
-      return null;
-    }
-    return response.json();
-  } catch (error) {
-    return null;
-  }
-};
-
-export const updateMoviesInSession = async (
-  code: string,
-  username: string,
-  movies: Movie[]
-): Promise<SessionResponse> => {
-  return updateMovies(code, username, movies);
-};
-
 // Utility to debounce movie updates
 export const debounce = <T extends (...args: any[]) => void>(
   func: T,

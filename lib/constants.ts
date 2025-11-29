@@ -44,8 +44,11 @@ export const MOVIE_CONFIG = {
  * Polling Configuration
  */
 export const POLLING_CONFIG = {
-  /** Session polling interval in milliseconds */
-  SESSION_POLL_INTERVAL_MS: 1000,
+  /** Session polling interval in milliseconds (fallback if SSE unavailable) */
+  SESSION_POLL_INTERVAL_MS: 3000,
+
+  /** SSE server-side poll interval in milliseconds */
+  SSE_POLL_INTERVAL_MS: 500,
 
   /** Search debounce delay in milliseconds */
   SEARCH_DEBOUNCE_MS: 300,
@@ -59,17 +62,8 @@ export const POLLING_CONFIG = {
  * All caches expire after 6 hours (one movie night session)
  */
 export const CACHE_CONFIG = {
-  /** Default cache TTL in seconds (6 hours) */
-  DEFAULT_TTL: 6 * 60 * 60,
-
-  /** Letterboxd rating cache TTL in seconds (6 hours) */
-  LETTERBOXD_RATING_TTL: 6 * 60 * 60,
-
-  /** TMDB movie details cache TTL in seconds (6 hours) */
-  TMDB_MOVIE_DETAILS_TTL: 6 * 60 * 60,
-
-  /** Letterboxd profile cache TTL in seconds (6 hours) */
-  LETTERBOXD_PROFILE_TTL: 6 * 60 * 60,
+  /** Cache TTL in seconds (6 hours - one movie night session) */
+  TTL: 6 * 60 * 60,
 } as const;
 
 /**
