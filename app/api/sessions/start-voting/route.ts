@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import getRedisClient from '../../../../lib/redis';
+import getRedisClient, { publishSessionUpdate } from '@/lib/redis';
 import { Session, StartVotingRequest, SessionResponse } from '../../../../lib/types';
 import { SESSION_CONFIG } from '../../../../lib/constants';
 import { canStartVoting } from '../../../../lib/voting';
@@ -55,11 +55,15 @@ export async function POST(request: NextRequest) {
       p.finalMovies = undefined;
     });
     
+    const sessionCode = code.trim().toUpperCase();
     await redis.setex(
-      `session:${code.trim().toUpperCase()}`,
+      `session:${sessionCode}`,
       24 * 60 * 60,
       JSON.stringify(session)
     );
+
+    // Publish update to SSE clients
+    await publishSessionUpdate(sessionCode, session);
 
     return NextResponse.json<SessionResponse>({
       success: true,

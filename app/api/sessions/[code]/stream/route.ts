@@ -1,13 +1,21 @@
 import { NextRequest } from 'next/server';
-import getRedisClient from '@/lib/redis';
+import getRedisClient, {
+  getSessionEmitter,
+  subscribeToSession,
+  unsubscribeFromSession,
+} from '@/lib/redis';
 import { Session } from '@/lib/types';
-import { POLLING_CONFIG } from '@/lib/constants';
+
+/** Heartbeat interval to keep Render connections alive (30s) */
+const HEARTBEAT_INTERVAL_MS = 30000;
 
 /**
  * Server-Sent Events endpoint for real-time session updates
  *
- * Instead of client polling every second, the client opens a single
- * long-lived connection and receives updates only when state changes.
+ * Uses Redis pub/sub for instant updates (~50ms latency):
+ * - Single shared subscriber connection fans out via EventEmitter
+ * - Memory fallback works the same way for local dev
+ * - 30s heartbeat keeps Render from killing idle connections
  */
 export async function GET(
   request: NextRequest,
@@ -19,68 +27,78 @@ export async function GET(
     return new Response('Session code is required', { status: 400 });
   }
 
-  const sessionKey = `session:${code.trim().toUpperCase()}`;
+  const sessionCode = code.trim().toUpperCase();
+  const sessionKey = `session:${sessionCode}`;
+  const channel = `session:${sessionCode}`;
   const encoder = new TextEncoder();
 
-  let intervalId: NodeJS.Timeout | null = null;
+  let heartbeatInterval: NodeJS.Timeout | null = null;
 
   const stream = new ReadableStream({
     async start(controller) {
       const redis = getRedisClient();
-      let lastStateHash = '';
+      const sessionEmitter = getSessionEmitter();
 
-      const sendUpdate = async () => {
+      // Handler for pub/sub messages
+      const handleMessage = (message: string) => {
         try {
-          const sessionData = await redis.get(sessionKey);
-
-          if (!sessionData) {
-            // Session expired or not found - send close event
-            controller.enqueue(encoder.encode(`event: session-expired\ndata: {}\n\n`));
-            controller.close();
-            if (intervalId) clearInterval(intervalId);
-            return;
-          }
-
-          // Only send if state changed (simple string comparison)
-          if (sessionData !== lastStateHash) {
-            lastStateHash = sessionData;
-
-            // Parse and add migration for backward compatibility
-            const session: Session = JSON.parse(sessionData);
-            if (!session.votingPhase) {
-              session.votingPhase = 'ranking';
-            }
-
-            controller.enqueue(
-              encoder.encode(`data: ${JSON.stringify(session)}\n\n`)
-            );
-          }
-        } catch (error) {
-          console.error('SSE stream error:', error);
-          controller.enqueue(
-            encoder.encode(`event: error\ndata: {"error": "Stream error"}\n\n`)
-          );
+          controller.enqueue(encoder.encode(`data: ${message}\n\n`));
+        } catch {
+          // Controller closed, cleanup will happen via abort
         }
       };
 
-      // Send initial state immediately
-      await sendUpdate();
+      // 1. Subscribe FIRST (before fetching state)
+      //    This prevents race condition where we miss updates
+      await subscribeToSession(sessionCode);
 
-      // Poll Redis at a fast interval (server-side only)
-      // This is more efficient than client polling because:
-      // 1. Only sends data when state actually changes
-      // 2. No HTTP request overhead for each poll
-      intervalId = setInterval(sendUpdate, POLLING_CONFIG.SSE_POLL_INTERVAL_MS);
+      // 2. Set up EventEmitter listener
+      sessionEmitter.on(channel, handleMessage);
 
-      // Handle client disconnect
+      // 3. THEN fetch current state (catches any updates during setup)
+      const sessionData = await redis.get(sessionKey);
+
+      if (!sessionData) {
+        // Session not found - send close event and cleanup
+        controller.enqueue(encoder.encode(`event: session-expired\ndata: {}\n\n`));
+        sessionEmitter.off(channel, handleMessage);
+        await unsubscribeFromSession(sessionCode).catch(() => {});
+        controller.close();
+        return;
+      }
+
+      // Send initial state with migration
+      const session: Session = JSON.parse(sessionData);
+      if (!session.votingPhase) {
+        session.votingPhase = 'ranking';
+      }
+      controller.enqueue(encoder.encode(`data: ${JSON.stringify(session)}\n\n`));
+
+      // 4. Start heartbeat to keep Render connection alive
+      heartbeatInterval = setInterval(() => {
+        try {
+          controller.enqueue(encoder.encode(`: heartbeat\n\n`));
+        } catch {
+          // Controller closed
+        }
+      }, HEARTBEAT_INTERVAL_MS);
+
+      // 5. Cleanup on client disconnect
       request.signal.addEventListener('abort', () => {
-        if (intervalId) clearInterval(intervalId);
+        if (heartbeatInterval) {
+          clearInterval(heartbeatInterval);
+        }
+        sessionEmitter.off(channel, handleMessage);
+        unsubscribeFromSession(sessionCode).catch(() => {});
       });
     },
 
     cancel() {
-      if (intervalId) clearInterval(intervalId);
-    }
+      // Backup cleanup if start() fails
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+      }
+    },
   });
 
   return new Response(stream, {

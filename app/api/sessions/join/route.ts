@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import getRedisClient from '../../../../lib/redis';
+import getRedisClient, { publishSessionUpdate } from '@/lib/redis';
 import { Session, JoinSessionRequest, SessionResponse } from '../../../../lib/types';
 import { validateLetterboxdProfile } from '../../../../lib/letterboxd-server';
 import { SESSION_CONFIG } from '../../../../lib/constants';
@@ -74,6 +74,9 @@ export async function POST(request: NextRequest) {
       SESSION_CONFIG.TTL_SECONDS,
       JSON.stringify(session)
     );
+
+    // Publish update to SSE clients
+    await publishSessionUpdate(code.trim().toUpperCase(), session);
 
     return NextResponse.json<SessionResponse>({
       success: true,
