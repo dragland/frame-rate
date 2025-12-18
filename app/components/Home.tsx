@@ -4,10 +4,9 @@ import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { searchMovies, Movie, getMovieDetails, formatRuntime } from '@/lib/tmdb';
 import { getLetterboxdRating } from '@/lib/letterboxd';
-import { createSession, joinSession, updateMovies, getSession, leaveSession, debounce } from '@/lib/session';
+import { createSession, joinSession, updateMovies, leaveSession, debounce } from '@/lib/session';
 import { Session } from '@/lib/types';
 import { canStartVoting, startVoting } from '@/lib/voting';
-import { POLLING_CONFIG } from '@/lib/constants';
 import VotingModal from './VotingModal';
 import ProfilePicture from './ProfilePicture';
 import BackgroundInstructions from './BackgroundInstructions';
@@ -35,7 +34,9 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
   const [joinCode, setJoinCode] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Movie[]>([]);
-  const [totalMoviesShown, setTotalMoviesShown] = useState(0);
+  const [cachedRawResults, setCachedRawResults] = useState<Movie[]>([]); // Raw TMDB results before enhancement
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
   const [hasMoreResults, setHasMoreResults] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [myMovies, setMyMovies] = useState<Movie[]>(
@@ -108,25 +109,32 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
   const handleSearch = async (query: string) => {
     if (!query.trim()) {
       setSearchResults([]);
-      setTotalMoviesShown(0);
+      setCachedRawResults([]);
+      setCurrentPage(1);
+      setTotalPages(0);
       setHasMoreResults(false);
       return;
     }
-    
+
     setIsLoading(true);
-    setTotalMoviesShown(5);
-    setHasMoreResults(false);
-    
+    setCachedRawResults([]);
+    setCurrentPage(1);
+
     try {
       const results = await searchMovies(query, 1);
+      // Cache all raw results from this page
+      setCachedRawResults(results.results);
+      setTotalPages(results.total_pages);
+
+      // Enhance only the first 5 for display
       const moviesWithEnhancedData = await Promise.all(
         results.results.slice(0, 5).map(async (movie) => {
           const [letterboxdRating, movieDetails] = await Promise.all([
             getLetterboxdRating(movie.id),
             getMovieDetails(movie.id)
           ]);
-          return { 
-            ...movie, 
+          return {
+            ...movie,
             letterboxdRating,
             runtime: movieDetails?.runtime,
             director: movieDetails?.director
@@ -134,69 +142,66 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
         })
       );
       setSearchResults(moviesWithEnhancedData);
-      
-      // Check if there are more results available
-      setHasMoreResults(results.total_results > 5);
+
+      // Check if there are more results available (either in cache or more pages)
+      setHasMoreResults(results.results.length > 5 || results.total_pages > 1);
     } catch (error) {
       setSearchResults([]);
-      setTotalMoviesShown(0);
+      setCachedRawResults([]);
     }
     setIsLoading(false);
   };
 
   const loadMoreResults = async () => {
     if (!searchQuery.trim() || isLoadingMore) return;
-    
+
     setIsLoadingMore(true);
-    
+    const currentlyShown = searchResults.length;
+
     try {
-      // Simple approach: fetch pages until we have enough movies
-      let allFetchedMovies: any[] = [];
-      let page = 1;
-      
-      // Keep fetching pages until we have more than totalMoviesShown
-      while (allFetchedMovies.length <= totalMoviesShown) {
-        const results = await searchMovies(searchQuery, page);
-        allFetchedMovies = [...allFetchedMovies, ...results.results];
-        page++;
-        
-        // Break if this was the last page
-        if (results.results.length === 0 || page > results.total_pages) {
-          break;
-        }
+      let rawResults = [...cachedRawResults];
+
+      // If we need more results than we have cached, fetch the next page
+      if (currentlyShown + 5 > rawResults.length && currentPage < totalPages) {
+        const nextPage = currentPage + 1;
+        const results = await searchMovies(searchQuery, nextPage);
+        rawResults = [...rawResults, ...results.results];
+        setCachedRawResults(rawResults);
+        setCurrentPage(nextPage);
       }
-      
+
       // Get the next 5 movies we haven't shown yet
-      const nextMovies = allFetchedMovies.slice(totalMoviesShown, totalMoviesShown + 5);
-      
+      const nextMovies = rawResults.slice(currentlyShown, currentlyShown + 5);
+
       if (nextMovies.length > 0) {
-        // Process the movies with enhanced data
+        // Enhance only these new movies
         const moviesWithEnhancedData = await Promise.all(
           nextMovies.map(async (movie) => {
             const [letterboxdRating, movieDetails] = await Promise.all([
               getLetterboxdRating(movie.id),
               getMovieDetails(movie.id)
             ]);
-            return { 
-              ...movie, 
+            return {
+              ...movie,
               letterboxdRating,
               runtime: movieDetails?.runtime,
               director: movieDetails?.director
             };
           })
         );
-        
+
         setSearchResults(prev => [...prev, ...moviesWithEnhancedData]);
-        setTotalMoviesShown(totalMoviesShown + moviesWithEnhancedData.length);
-        
-        // Check if there are more results
-        setHasMoreResults(allFetchedMovies.length > totalMoviesShown + moviesWithEnhancedData.length);
+
+        // Check if there are more results (in cache or more pages to fetch)
+        const newTotal = currentlyShown + moviesWithEnhancedData.length;
+        setHasMoreResults(rawResults.length > newTotal || currentPage < totalPages);
       } else {
         setHasMoreResults(false);
       }
     } catch (error) {
+      // Silently fail
     }
-    
+
     setIsLoadingMore(false);
   };
 
@@ -298,27 +303,39 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
     return () => clearTimeout(timeoutId);
   }, [searchQuery]);
 
+  // SSE: Real-time session updates via Redis pub/sub
   useEffect(() => {
-    if (!sessionData || sessionMode === 'solo') return;
-    
-    const pollSession = async () => {
+    if (!sessionCode || sessionMode === 'solo') return;
+
+    const eventSource = new EventSource(`/api/sessions/${sessionCode}/stream`);
+
+    eventSource.onmessage = (event) => {
       try {
-        const response = await getSession(sessionData.code);
-        if (response.success && response.session) {
-          setSessionData(response.session);
-          
-          const myParticipant = response.session.participants.find(p => p.username === username);
-          if (myParticipant && JSON.stringify(myParticipant.movies) !== JSON.stringify(myMovies)) {
-            setMyMovies(myParticipant.movies);
-          }
+        const session: Session = JSON.parse(event.data);
+        setSessionData(session);
+
+        // Sync local movie list if it changed elsewhere
+        const myParticipant = session.participants.find(p => p.username === username);
+        if (myParticipant && JSON.stringify(myParticipant.movies) !== JSON.stringify(myMovies)) {
+          setMyMovies(myParticipant.movies);
         }
-      } catch (error) {
+      } catch {
+        // Ignore parse errors (e.g., heartbeat comments)
       }
     };
-    
-    const interval = setInterval(pollSession, POLLING_CONFIG.SESSION_POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [sessionData, sessionMode, username]);
+
+    eventSource.addEventListener('session-expired', () => {
+      setSessionError('Session expired');
+      eventSource.close();
+    });
+
+    eventSource.onerror = () => {
+      // EventSource will auto-reconnect, but if it keeps failing we could fall back to polling
+      // For now, just let it retry
+    };
+
+    return () => eventSource.close();
+  }, [sessionCode, sessionMode, username]);
 
   useEffect(() => {
     if (!sessionData || sessionMode === 'solo') return;
@@ -373,6 +390,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
                 value={username}
                 onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
                 className="w-full p-4 bg-gray-900 border-2 border-gray-700 text-white rounded-lg focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400 font-mono text-center lowercase placeholder:text-gray-500 placeholder:normal-case"
+                aria-label="Letterboxd username"
                 required
               />
             </div>
@@ -404,6 +422,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
                   onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                   maxLength={4}
                   className="w-full p-3 border border-gray-700 bg-gray-900 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-center font-mono text-lg tracking-wider"
+                  aria-label="Session code to join"
                   required
                 />
                 <button
@@ -508,6 +527,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full p-3 border border-gray-700 bg-gray-800 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              aria-label="Search for movies"
             />
           </div>
         </div>
@@ -616,9 +636,10 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
                 />
               ))}
               {myMovies.length === 0 && (
-                <p className="text-gray-500 dark:text-gray-400 text-center py-8">
-                  Nominations
-                </p>
+                <div className="text-center py-8">
+                  <p className="text-gray-400 mb-2">No nominations yet</p>
+                  <p className="text-gray-500 text-sm">Search for movies to add your top picks</p>
+                </div>
               )}
             </div>
 

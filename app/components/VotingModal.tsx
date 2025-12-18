@@ -18,6 +18,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [finalMovies, setFinalMovies] = useState<Movie[]>([]);
+  const [pendingVeto, setPendingVeto] = useState<{ nominationId: string; title: string } | null>(null);
   
   const allMovies = getAllMovies(session);
   const vetoedMovies = getVetoedMovies(session);
@@ -85,7 +86,8 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
   const handleVetoNomination = async (nominationId: string) => {
     setIsLoading(true);
     setError('');
-    
+    setPendingVeto(null);
+
     try {
       const response = await vetoNomination(session.code, username, nominationId);
       if (response.success) {
@@ -96,8 +98,16 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
     } catch (err) {
       setError('Failed to veto nomination');
     }
-    
+
     setIsLoading(false);
+  };
+
+  const handleVetoClick = (nominationId: string, title: string) => {
+    setPendingVeto({ nominationId, title });
+  };
+
+  const cancelVeto = () => {
+    setPendingVeto(null);
   };
 
   const handleUpdateFinalMovies = async () => {
@@ -199,12 +209,37 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
         </div>
       ) : (
         <div>
+          {/* Veto confirmation dialog */}
+          {pendingVeto && (
+            <div className="mb-4 p-4 bg-red-900/50 border border-red-700 rounded-lg">
+              <p className="text-white text-sm mb-3">
+                Eliminate <span className="font-semibold">"{pendingVeto.title}"</span> from the pool? This cannot be undone.
+              </p>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => handleVetoNomination(pendingVeto.nominationId)}
+                  disabled={isLoading}
+                  className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 text-white py-2 px-3 rounded font-semibold text-sm transition-colors"
+                >
+                  {isLoading ? 'Vetoing...' : 'Confirm Veto'}
+                </button>
+                <button
+                  onClick={cancelVeto}
+                  disabled={isLoading}
+                  className="flex-1 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-600 text-white py-2 px-3 rounded font-semibold text-sm transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-3 max-h-96 overflow-y-auto">
             {remainingNominations.map((nomination) => (
               <div
                 key={nomination.nominationId}
-                className="flex items-center space-x-3 p-3 bg-gray-800 rounded-lg hover:bg-gray-700 cursor-pointer transition-all"
-                onClick={() => handleVetoNomination(nomination.nominationId)}
+                className={`flex items-center space-x-3 p-3 bg-gray-800 rounded-lg hover:bg-gray-700 cursor-pointer transition-all ${pendingVeto?.nominationId === nomination.nominationId ? 'ring-2 ring-red-500' : ''}`}
+                onClick={() => handleVetoClick(nomination.nominationId, nomination.title)}
               >
                 <Image
                   src={getImageUrl(nomination.poster_path)}
@@ -235,7 +270,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
                   </div>
                 </div>
                 <button className="text-red-500 hover:text-red-700 px-3 py-1 rounded font-semibold flex items-center space-x-1">
-                  <ProfilePicture 
+                  <ProfilePicture
                     username={nomination.nominatedBy}
                     profilePicture={session.participants.find(p => p.username === nomination.nominatedBy)?.profilePicture}
                     size="sm"

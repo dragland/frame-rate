@@ -41,23 +41,6 @@ export const MOVIE_CONFIG = {
 } as const;
 
 /**
- * Polling Configuration
- */
-export const POLLING_CONFIG = {
-  /** Session polling interval in milliseconds (fallback if SSE unavailable) */
-  SESSION_POLL_INTERVAL_MS: 3000,
-
-  /** SSE server-side poll interval in milliseconds */
-  SSE_POLL_INTERVAL_MS: 500,
-
-  /** Search debounce delay in milliseconds */
-  SEARCH_DEBOUNCE_MS: 300,
-
-  /** Movie update debounce delay in milliseconds */
-  UPDATE_DEBOUNCE_MS: 1000,
-} as const;
-
-/**
  * Cache Configuration
  * All caches expire after 6 hours (one movie night session)
  */

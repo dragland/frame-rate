@@ -42,7 +42,8 @@ export async function GET(request: NextRequest) {
     const html = await response.text();
 
     // Extract rating from Twitter meta tag using regex
-    const ratingMetaMatch = html.match(/<meta name="twitter:data2" content="([^"]*)" \/>/);
+    // Match both self-closing /> and regular > endings
+    const ratingMetaMatch = html.match(/<meta name="twitter:data2" content="([^"]*)"[^>]*>/);
 
     if (!ratingMetaMatch || !ratingMetaMatch[1] || !ratingMetaMatch[1].includes('out of 5')) {
       return NextResponse.json({ error: 'Rating not found' }, { status: 404 });

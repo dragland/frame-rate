@@ -31,11 +31,6 @@ export const updateMovies = async (code: string, username: string, movies: Movie
   return response.json();
 };
 
-export const getSession = async (code: string): Promise<SessionResponse> => {
-  const response = await fetch(`/api/sessions/${code}`);
-  return response.json();
-};
-
 export const leaveSession = async (code: string, username: string): Promise<SessionResponse> => {
   const response = await fetch('/api/sessions/leave', {
     method: 'POST',
@@ -47,6 +42,7 @@ export const leaveSession = async (code: string, username: string): Promise<Sess
 };
 
 // Utility to debounce movie updates
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const debounce = <T extends (...args: any[]) => void>(
   func: T,
   delay: number
