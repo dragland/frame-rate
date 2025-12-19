@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import getRedisClient, { publishSessionUpdate } from '@/lib/redis';
+import { atomicSessionCreate, publishSessionUpdate } from '@/lib/redis';
 import { Session, CreateSessionRequest, SessionResponse } from '../../../../lib/types';
 import { validateLetterboxdProfile } from '../../../../lib/letterboxd-server';
 import { SESSION_CONFIG } from '../../../../lib/constants';
@@ -15,68 +15,70 @@ const generateSessionCode = (): string => {
 export async function POST(request: NextRequest) {
   try {
     const { username }: CreateSessionRequest = await request.json();
-    
+
     if (!username?.trim()) {
-      return NextResponse.json<SessionResponse>({ 
-        success: false, 
-        error: 'Username is required' 
+      return NextResponse.json<SessionResponse>({
+        success: false,
+        error: 'Username is required'
       }, { status: 400 });
     }
-    
-    const redis = getRedisClient();
-    
-    // Generate unique session code
-    let code: string;
-    let attempts = 0;
-    do {
-      code = generateSessionCode();
-      attempts++;
-      if (attempts > SESSION_CONFIG.MAX_CODE_GENERATION_ATTEMPTS) {
-        throw new Error('Failed to generate unique session code');
-      }
-    } while (await redis.exists(`session:${code}`));
-    
-    // Validate Letterboxd profile
-    const profile = await validateLetterboxdProfile(username.trim());
-    
-    const now = new Date();
-    const session: Session = {
-      code,
-      host: username.trim(),
-      participants: [{
-        username: username.trim(),
-        movies: [],
-        joinedAt: now,
-        profilePicture: profile.profilePicture,
-        letterboxdExists: profile.exists,
-      }],
-      createdAt: now,
-      expiresAt: new Date(now.getTime() + SESSION_CONFIG.TTL_MS),
-      isVotingOpen: false,
-      maxParticipants: SESSION_CONFIG.MAX_PARTICIPANTS,
-      votingPhase: 'ranking',
-    };
 
-    // Store session in Redis with TTL
-    await redis.setex(
-      `session:${code}`,
-      SESSION_CONFIG.TTL_SECONDS,
-      JSON.stringify(session)
-    );
+    const trimmedUsername = username.trim();
+
+    // Validate Letterboxd profile first (before code generation loop)
+    const profile = await validateLetterboxdProfile(trimmedUsername);
+
+    // Try to atomically create session with unique code
+    let session: Session | null = null;
+
+    for (let attempts = 0; attempts < SESSION_CONFIG.MAX_CODE_GENERATION_ATTEMPTS; attempts++) {
+      const code = generateSessionCode();
+      const now = new Date();
+
+      const candidateSession: Session = {
+        code,
+        host: trimmedUsername,
+        participants: [{
+          username: trimmedUsername,
+          movies: [],
+          joinedAt: now,
+          profilePicture: profile.profilePicture,
+          letterboxdExists: profile.exists,
+        }],
+        createdAt: now,
+        expiresAt: new Date(now.getTime() + SESSION_CONFIG.TTL_MS),
+        isVotingOpen: false,
+        maxParticipants: SESSION_CONFIG.MAX_PARTICIPANTS,
+        votingPhase: 'ranking',
+      };
+
+      // Atomically try to create - fails if code already exists
+      const created = await atomicSessionCreate(code, candidateSession, SESSION_CONFIG.TTL_SECONDS);
+
+      if (created) {
+        session = candidateSession;
+        break;
+      }
+      // Code collision - try another code
+    }
+
+    if (!session) {
+      throw new Error('Failed to generate unique session code');
+    }
 
     // Publish update to SSE clients
-    await publishSessionUpdate(code, session);
+    await publishSessionUpdate(session.code, session);
 
     return NextResponse.json<SessionResponse>({
       success: true,
       session
     });
-    
+
   } catch (error) {
     console.error('Create session error:', error);
-    return NextResponse.json<SessionResponse>({ 
-      success: false, 
-      error: 'Failed to create session' 
+    return NextResponse.json<SessionResponse>({
+      success: false,
+      error: 'Failed to create session'
     }, { status: 500 });
   }
 } 

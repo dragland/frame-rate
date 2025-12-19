@@ -10,7 +10,11 @@ interface MemoryClient {
   get: (key: string) => Promise<string | null>;
   exists: (key: string) => Promise<number>;
   del: (key: string) => Promise<number>;
+  setnx: (key: string, value: string) => Promise<number>;
 }
+
+/** Max retries for optimistic locking before giving up */
+const MAX_ATOMIC_RETRIES = 5;
 
 /**
  * Type for Redis client - can be actual Redis or memory fallback
@@ -26,11 +30,18 @@ declare global {
   var __frameRateMemoryStore: Map<string, string> | undefined;
   var __frameRateHasWarnedAboutMemory: boolean | undefined;
   var __frameRateSessionEmitter: EventEmitter | undefined;
+  var __frameRateMemoryLocks: Map<string, Promise<void>> | undefined;
 }
 
 const memoryStore = globalThis.__frameRateMemoryStore ?? new Map<string, string>();
 if (process.env.NODE_ENV === 'development') {
   globalThis.__frameRateMemoryStore = memoryStore;
+}
+
+// Simple mutex for memory store atomicity in dev
+const memoryLocks = globalThis.__frameRateMemoryLocks ?? new Map<string, Promise<void>>();
+if (process.env.NODE_ENV === 'development') {
+  globalThis.__frameRateMemoryLocks = memoryLocks;
 }
 
 /**
@@ -207,6 +218,144 @@ const createMemoryClient = (): MemoryClient => ({
     memoryStore.delete(key);
     return existed ? 1 : 0;
   },
+
+  async setnx(key: string, value: string): Promise<number> {
+    if (memoryStore.has(key)) {
+      return 0; // Key exists, not set
+    }
+    memoryStore.set(key, value);
+    return 1; // Key set successfully
+  },
 });
+
+/**
+ * Get the raw ioredis client for advanced operations (WATCH/MULTI/EXEC)
+ * Returns null if using memory fallback
+ */
+export const getRawRedisClient = (): Redis | null => {
+  const redisUrl = process.env.REDIS_URL || process.env.REDISCLOUD_URL;
+  if (!redisUrl) return null;
+
+  // Ensure client is initialized
+  getRedisClient();
+  return redis;
+};
+
+/**
+ * Atomically update a session using optimistic locking
+ * Uses WATCH/MULTI/EXEC for Redis, mutex for memory fallback
+ *
+ * @param sessionCode - The session code (without 'session:' prefix)
+ * @param ttl - TTL in seconds for the session
+ * @param modifier - Function that takes current session and returns modified session (or null to abort)
+ * @returns The modified session, or null if modifier returned null or session doesn't exist
+ * @throws Error if max retries exceeded (concurrent modification conflict)
+ */
+export const atomicSessionUpdate = async (
+  sessionCode: string,
+  ttl: number,
+  modifier: (session: Session) => Session | null
+): Promise<Session | null> => {
+  const key = `session:${sessionCode}`;
+  const rawRedis = getRawRedisClient();
+
+  if (rawRedis) {
+    // Redis: Use WATCH/MULTI/EXEC for optimistic locking
+    for (let attempt = 0; attempt < MAX_ATOMIC_RETRIES; attempt++) {
+      await rawRedis.watch(key);
+
+      const data = await rawRedis.get(key);
+      if (!data) {
+        await rawRedis.unwatch();
+        return null;
+      }
+
+      const session: Session = JSON.parse(data);
+      const modified = modifier(session);
+
+      if (modified === null) {
+        await rawRedis.unwatch();
+        return null;
+      }
+
+      const multi = rawRedis.multi();
+      multi.setex(key, ttl, JSON.stringify(modified));
+      const result = await multi.exec();
+
+      if (result !== null) {
+        // Success - transaction committed
+        return modified;
+      }
+      // result === null means WATCH detected a change, retry
+      console.log(`⚠️ Atomic update conflict on ${key}, retry ${attempt + 1}/${MAX_ATOMIC_RETRIES}`);
+    }
+
+    throw new Error(`Atomic update failed after ${MAX_ATOMIC_RETRIES} retries - too much contention on ${key}`);
+  } else {
+    // Memory fallback: Use simple mutex
+    // Wait for any existing lock on this key
+    const existingLock = memoryLocks.get(key);
+    if (existingLock) {
+      await existingLock;
+    }
+
+    // Create our lock
+    let releaseLock: () => void;
+    const lockPromise = new Promise<void>(resolve => {
+      releaseLock = resolve;
+    });
+    memoryLocks.set(key, lockPromise);
+
+    try {
+      const data = memoryStore.get(key);
+      if (!data) {
+        return null;
+      }
+
+      const session: Session = JSON.parse(data);
+      const modified = modifier(session);
+
+      if (modified === null) {
+        return null;
+      }
+
+      memoryStore.set(key, JSON.stringify(modified));
+      return modified;
+    } finally {
+      memoryLocks.delete(key);
+      releaseLock!();
+    }
+  }
+};
+
+/**
+ * Atomically create a session with a unique code using SETNX
+ * Prevents race condition where two creates get the same code
+ *
+ * @param code - The session code to claim
+ * @param session - The session data
+ * @param ttl - TTL in seconds
+ * @returns true if created, false if code already exists
+ */
+export const atomicSessionCreate = async (
+  code: string,
+  session: Session,
+  ttl: number
+): Promise<boolean> => {
+  const key = `session:${code}`;
+  const rawRedis = getRawRedisClient();
+  const value = JSON.stringify(session);
+
+  if (rawRedis) {
+    // Redis: Use SET NX EX for atomic create-if-not-exists with TTL
+    const result = await rawRedis.set(key, value, 'EX', ttl, 'NX');
+    return result === 'OK';
+  } else {
+    // Memory fallback
+    const client = getRedisClient() as MemoryClient;
+    const created = await client.setnx(key, value);
+    return created === 1;
+  }
+};
 
 export default getRedisClient;
