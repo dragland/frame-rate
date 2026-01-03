@@ -243,7 +243,7 @@ export const vetoMovie = async (code: string, username: string, movieId: number)
 export const vetoNomination = async (code: string, username: string, nominationId: string) => {
   const [movieIdStr] = nominationId.split('-');
   const movieId = parseInt(movieIdStr);
-  
+
   const response = await fetch('/api/sessions/veto', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
