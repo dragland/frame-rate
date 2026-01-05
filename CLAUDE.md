@@ -1,85 +1,43 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Movie night voting app: nominate films → veto one each → ranked-choice winner.
 
 ## Commands
 
 ```bash
-npm run dev              # Development server (in-memory sessions)
-npm run dev:redis        # Development with Redis via Docker
-npm run build            # Production build
-npm run lint             # ESLint
+npm run dev          # Dev server (in-memory)
+npm run dev:redis    # Dev with Redis (Docker)
+npm run build && npm run lint
 ```
 
-Requires `TMDB_API_KEY` in `.env.local`. Production requires `REDIS_URL`.
+Env: `TMDB_API_KEY` in `.env.local`. Production needs `REDIS_URL`.
 
-## Architecture
+## Critical: Session Mutations
 
-Frame Rate is a movie night voting app where friends nominate films, veto one each, then use ranked-choice voting to pick a winner.
+**All mutations MUST use this pattern** (race conditions otherwise):
 
-### Voting Flow (Sequential Phases)
-
-```
-ranking → locked → vetoing → finalRanking → results
-```
-
-1. **ranking**: Users nominate 2+ movies (only top 2 count), can reorder
-2. **locked**: Host locks nominations, no more changes
-3. **vetoing**: Each participant vetoes exactly one nomination
-4. **finalRanking**: Rank remaining movies for final vote
-5. **results**: Ranked-choice winner calculated and displayed
-
-Phase transitions happen automatically when all participants complete their action.
-
-### Storage Layer (`lib/redis.ts`)
-
-Dual-mode storage with identical interface:
-- **Production**: Redis with `WATCH/MULTI/EXEC` for atomic updates
-- **Development**: In-memory Map with mutex locks
-
-Key pattern for mutations:
 ```typescript
 const updated = await atomicSessionUpdate(code, ttl, (session) => {
   // modify session
   return session; // or null to abort
 });
-await publishSessionUpdate(code, updated);
+await publishSessionUpdate(code, updated);  // SSE broadcast
 ```
 
-All session mutations must use `atomicSessionUpdate()` to prevent race conditions, followed by `publishSessionUpdate()` for SSE broadcast.
+## Phase Flow (Sequential, No Skipping)
 
-### Real-time Updates
+```
+ranking → locked → vetoing → finalRanking → results
+```
 
-Single shared Redis subscriber fans out to unlimited SSE clients via EventEmitter:
-- `subscribeToSession(code)` - subscribe once per channel
-- `publishSessionUpdate(code, session)` - broadcast after mutations
-- `getSessionEmitter()` - attach SSE response listeners
+Transitions happen automatically when all participants complete their action. Phase order is strict.
 
-SSE endpoint: `app/api/sessions/[code]/stream/route.ts`
+## Key Files
 
-### Ranked-Choice Voting (`lib/voting.ts`)
-
-`calculateRankedChoiceWinner()` implements instant-runoff:
-1. Count first-choice votes from each participant's `finalMovies` (or `movies` fallback)
-2. If any movie has majority (>50%), it wins
-3. Otherwise, eliminate movie with fewest votes (random tiebreaker)
-4. Repeat until winner
-
-### External APIs
-
-- **TMDB**: Movie search, details, posters (`lib/tmdb.ts`)
-- **Letterboxd**: Profile validation and ratings via HTML scraping (`lib/letterboxd-server.ts`)
-
-Letterboxd scraping is fragile by nature - uses multiple regex patterns for robustness.
-
-### Key Constants (`lib/constants.ts`)
-
-- Session TTL: 24 hours
-- Max participants: 8
-- Max nominations per user: 2
-- Session codes: 4 uppercase letters
-- Cache TTL: 6 hours (profile pics, movie data)
-
-### Types (`lib/types.ts`)
-
-Core types: `Session`, `SessionParticipant`, `VotingPhase`, `VotingResults`, `Movie`
+| File | Purpose |
+|------|---------|
+| `lib/redis.ts` | Storage + atomic ops + SSE pub/sub |
+| `lib/voting.ts` | Ranked-choice algorithm |
+| `lib/types.ts` | `Session`, `VotingPhase`, `Movie` |
+| `lib/constants.ts` | TTLs, limits (24h session, 8 users, 2 nominations) |
+| `lib/letterboxd-server.ts` | Profile scraping (fragile, multiple regex fallbacks) |
