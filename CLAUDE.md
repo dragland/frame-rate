@@ -1,17 +1,5 @@
 # CLAUDE.md
 
-Movie night voting app: nominate films → veto one each → ranked-choice winner.
-
-## Commands
-
-```bash
-npm run dev          # Dev server (in-memory)
-npm run dev:redis    # Dev with Redis (Docker)
-npm run build && npm run lint
-```
-
-Env: `TMDB_API_KEY` in `.env.local`. Production needs `REDIS_URL`.
-
 ## Critical: Session Mutations
 
 **All mutations MUST use this pattern** (race conditions otherwise):
@@ -30,14 +18,13 @@ await publishSessionUpdate(code, updated);  // SSE broadcast
 ranking → locked → vetoing → finalRanking → results
 ```
 
-Transitions happen automatically when all participants complete their action. Phase order is strict.
+Transitions happen automatically when all participants complete their action. Never skip phases.
 
-## Key Files
+## Key Patterns
 
-| File | Purpose |
-|------|---------|
-| `lib/redis.ts` | Storage + atomic ops + SSE pub/sub |
-| `lib/voting.ts` | Ranked-choice algorithm |
-| `lib/types.ts` | `Session`, `VotingPhase`, `Movie` |
-| `lib/constants.ts` | TTLs, limits (24h session, 8 users, 2 nominations) |
-| `lib/letterboxd-server.ts` | Profile scraping (fragile, multiple regex fallbacks) |
+- **Validation in atomic modifiers**: Capture errors in closure variable, return `null` to abort, check after for HTTP status
+- **Storage**: `lib/redis.ts` abstracts Redis (prod) / in-memory Map (dev) - auto-detected by `REDIS_URL`
+- **SSE race condition**: Subscribe to pub/sub BEFORE fetching state (see `stream/route.ts`)
+- **Duplicate nominations**: Same movie from different users → use `nominationId` for vetoes
+- **Voting ties**: Random coin flip + UI feedback
+- **Letterboxd scraping** (`lib/letterboxd-server.ts`): Fragile, uses multiple regex fallbacks
