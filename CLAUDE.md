@@ -27,4 +27,5 @@ Transitions happen automatically when all participants complete their action. Ne
 - **SSE race condition**: Subscribe to pub/sub BEFORE fetching state (see `stream/route.ts`)
 - **Duplicate nominations**: Same movie from different users → use `nominationId` for vetoes
 - **Voting ties**: Random coin flip + UI feedback
-- **Letterboxd scraping** (`lib/letterboxd-server.ts`): Fragile, uses multiple regex fallbacks
+- **Letterboxd profile scraping** (`lib/letterboxd-server.ts`): Fragile regex patterns for avatar extraction
+- **Letterboxd rating scraping** (`lib/letterboxd-rating-server.ts`): Direct fetch with Jina Reader proxy fallback on Cloudflare; parses `twitter:data2` meta with JSON-LD fallback
