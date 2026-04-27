@@ -32,7 +32,7 @@ const AVATAR_PATTERNS = [
 /**
  * User agent for Letterboxd requests
  */
-const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36';
+const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36';
 
 /**
  * Extracts profile picture URL from Letterboxd HTML

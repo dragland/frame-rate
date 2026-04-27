@@ -1,20 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import getRedisClient from '@/lib/redis';
 import { CACHE_CONFIG } from '@/lib/constants';
+import { fetchLetterboxdRating } from '@/lib/letterboxd-rating-server';
 
-interface LetterboxdRatingData {
-  rating: number;
-  ratingText: string;
-  filmUrl: string;
-  tmdbId: number;
-}
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const tmdbId = searchParams.get('tmdbId');
 
-  if (!tmdbId) {
-    return NextResponse.json({ error: 'tmdbId parameter is required' }, { status: 400 });
+  if (!tmdbId || !/^\d+$/.test(tmdbId)) {
+    return NextResponse.json({ error: 'tmdbId parameter is required and must be numeric' }, { status: 400 });
   }
 
   const redis = getRedisClient();
@@ -27,44 +23,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(JSON.parse(cached));
     }
 
-    // Fetch from Letterboxd
-    const url = `https://letterboxd.com/tmdb/${tmdbId}/`;
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-      },
-    });
+    const data = await fetchLetterboxdRating(tmdbId);
 
-    if (!response.ok) {
-      return NextResponse.json({ error: 'Failed to fetch from Letterboxd' }, { status: 404 });
-    }
-
-    const html = await response.text();
-
-    // Extract rating from Twitter meta tag using regex
-    // Match both self-closing /> and regular > endings
-    const ratingMetaMatch = html.match(/<meta name="twitter:data2" content="([^"]*)"[^>]*>/);
-
-    if (!ratingMetaMatch || !ratingMetaMatch[1] || !ratingMetaMatch[1].includes('out of 5')) {
+    if (!data) {
       return NextResponse.json({ error: 'Rating not found' }, { status: 404 });
     }
-
-    const ratingMeta = ratingMetaMatch[1];
-
-    // Parse "3.79 out of 5" format
-    const ratingMatch = ratingMeta.match(/^([\d.]+)\s+out of 5$/);
-    if (!ratingMatch) {
-      return NextResponse.json({ error: 'Could not parse rating' }, { status: 500 });
-    }
-
-    const rating = parseFloat(ratingMatch[1]);
-
-    const data: LetterboxdRatingData = {
-      rating,
-      ratingText: ratingMeta,
-      filmUrl: response.url,
-      tmdbId: parseInt(tmdbId)
-    };
 
     // Cache the result for 6 hours
     await redis.setex(
