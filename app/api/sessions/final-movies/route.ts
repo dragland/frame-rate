@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { atomicSessionUpdate, publishSessionUpdate } from '@/lib/redis';
 import { Session, UpdateFinalMoviesRequest, SessionResponse } from '../../../../lib/types';
 import { SESSION_CONFIG } from '../../../../lib/constants';
-import { calculateRankedChoiceWinner, getRemainingMovies } from '../../../../lib/voting';
+import { advanceVotingPhaseIfComplete, getRemainingMovies, hasFinalRanked, isExactMovieSet, orderMoviesFromCanonicalSet } from '../../../../lib/voting';
+import { isMovieArrayPayload, isValidSessionCode, isValidUsername, normalizeSessionCode, normalizeUsername } from '../../../../lib/validation';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,7 +16,15 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    const sessionCode = code.trim().toUpperCase();
+    if (!isValidSessionCode(code) || !isValidUsername(username) || !isMovieArrayPayload(movies)) {
+      return NextResponse.json<SessionResponse>({
+        success: false,
+        error: 'Invalid session code, username, or movie list'
+      }, { status: 400 });
+    }
+
+    const sessionCode = normalizeSessionCode(code);
+    const trimmedUsername = normalizeUsername(username);
 
     // Track validation errors from inside the atomic modifier
     let validationError: string | null = null;
@@ -25,7 +34,7 @@ export async function POST(request: NextRequest) {
       SESSION_CONFIG.TTL_SECONDS,
       (session: Session) => {
         // Check if user is in session
-        const participant = session.participants.find(p => p.username === username.trim());
+        const participant = session.participants.find(p => p.username === trimmedUsername);
         if (!participant) {
           validationError = 'User not in session';
           return null;
@@ -37,27 +46,23 @@ export async function POST(request: NextRequest) {
           return null;
         }
 
-        // Validate that movies are from the remaining movies list
-        const remainingMovies = getRemainingMovies(session);
-        const remainingMovieIds = new Set(remainingMovies.map(m => m.id));
-        const invalidMovies = movies.filter(m => !remainingMovieIds.has(m.id));
-
-        if (invalidMovies.length > 0) {
-          validationError = 'Invalid movies in final ranking';
+        if (hasFinalRanked(session, trimmedUsername)) {
+          validationError = 'Final ranking is already locked';
           return null;
         }
 
-        // Update participant's final movies
-        participant.finalMovies = movies;
+        // Validate that the submitted ranking is exactly the remaining movie set
+        const remainingMovies = getRemainingMovies(session);
 
-        // Check if everyone has completed final rankings
-        const allCompleted = session.participants.every(p => p.finalMovies && p.finalMovies.length > 0);
-
-        if (allCompleted) {
-          // Calculate final results using final rankings
-          session.votingPhase = 'results';
-          session.votingResults = calculateRankedChoiceWinner(session);
+        if (!isExactMovieSet(movies, remainingMovies)) {
+          validationError = 'Final ranking must include every remaining movie exactly once';
+          return null;
         }
+
+        // Record the ranking on the session so it survives leaving/rejoining
+        session.finalRankings[trimmedUsername] = orderMoviesFromCanonicalSet(movies, remainingMovies);
+
+        advanceVotingPhaseIfComplete(session);
 
         return session;
       }

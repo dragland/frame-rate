@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { atomicSessionUpdate, publishSessionUpdate } from '@/lib/redis';
 import { Session, UpdateMoviesRequest, SessionResponse } from '../../../../lib/types';
 import { SESSION_CONFIG } from '../../../../lib/constants';
+import { hasDuplicateMovieIds } from '../../../../lib/voting';
+import { isMovieArrayPayload, isValidSessionCode, isValidUsername, normalizeSessionCode, normalizeUsername, sanitizeMovies } from '../../../../lib/validation';
 
 export async function PUT(request: NextRequest) {
   try {
@@ -14,8 +16,22 @@ export async function PUT(request: NextRequest) {
       }, { status: 400 });
     }
 
-    const sessionCode = code.trim().toUpperCase();
-    const trimmedUsername = username.trim();
+    if (!isValidSessionCode(code) || !isValidUsername(username) || !isMovieArrayPayload(movies)) {
+      return NextResponse.json<SessionResponse>({
+        success: false,
+        error: 'Invalid session code, username, or movie list'
+      }, { status: 400 });
+    }
+
+    if (hasDuplicateMovieIds(movies)) {
+      return NextResponse.json<SessionResponse>({
+        success: false,
+        error: 'Movie list cannot contain duplicates'
+      }, { status: 400 });
+    }
+
+    const sessionCode = normalizeSessionCode(code);
+    const trimmedUsername = normalizeUsername(username);
 
     // Track validation errors from inside the atomic modifier
     let validationError: string | null = null;
@@ -24,11 +40,6 @@ export async function PUT(request: NextRequest) {
       sessionCode,
       SESSION_CONFIG.TTL_SECONDS,
       (session: Session) => {
-        // Migration: Add votingPhase if missing (for backward compatibility)
-        if (!session.votingPhase) {
-          session.votingPhase = 'ranking';
-        }
-
         // Prevent updates if voting is locked
         if (session.votingPhase !== 'ranking') {
           validationError = 'Cannot update movies during voting process';
@@ -45,8 +56,8 @@ export async function PUT(request: NextRequest) {
           return null;
         }
 
-        // Update participant's movies
-        participant.movies = movies || [];
+        // Update participant's movies (rebuilt from allowlisted fields)
+        participant.movies = sanitizeMovies(movies);
 
         return session;
       }

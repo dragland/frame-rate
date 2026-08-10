@@ -44,10 +44,12 @@ const createTestSession = (code: string = 'TEST'): Session => ({
     },
   ],
   createdAt: new Date('2024-01-01'),
-  expiresAt: new Date('2024-01-02'),
   isVotingOpen: false,
   maxParticipants: 8,
   votingPhase: 'ranking',
+  nominations: [],
+  vetoes: {},
+  finalRankings: {},
 });
 
 describe('redis.ts - Memory Fallback Mode', () => {
@@ -189,13 +191,13 @@ describe('redis.ts - Memory Fallback Mode', () => {
 
       const updated = await atomicSessionUpdate('PRES', 3600, (s) => ({
         ...s,
-        votingPhase: 'locked' as const,
+        votingPhase: 'vetoing' as const,
       }));
 
       expect(updated).not.toBeNull();
       expect(updated?.code).toBe('PRES');
       expect(updated?.host).toBe('alice');
-      expect(updated?.votingPhase).toBe('locked');
+      expect(updated?.votingPhase).toBe('vetoing');
       expect(updated?.participants).toHaveLength(1);
     });
 
@@ -229,14 +231,21 @@ describe('redis.ts - Memory Fallback Mode', () => {
       // Update a participant's movies
       const updated2 = await atomicSessionUpdate('PART', 3600, (s) => ({
         ...s,
-        participants: s.participants.map((p) =>
-          p.username === 'bob'
-            ? { ...p, vetoedMovieId: 1 }
-            : p
-        ),
+        vetoes: { ...s.vetoes, bob: '1-alice' },
       }));
 
-      expect(updated2?.participants.find((p) => p.username === 'bob')?.vetoedMovieId).toBe(1);
+      expect(updated2?.vetoes.bob).toBe('1-alice');
+    });
+
+    it('should delete the session when the modifier returns delete', async () => {
+      const session = createTestSession('DEL1');
+      await atomicSessionCreate('DEL1', session, 3600);
+
+      const result = await atomicSessionUpdate('DEL1', 3600, () => 'delete' as const);
+      expect(result).toBe('deleted');
+
+      const followUp = await atomicSessionUpdate('DEL1', 3600, (s) => s);
+      expect(followUp).toBeNull();
     });
   });
 
@@ -287,8 +296,8 @@ describe('redis.ts - Memory Fallback Mode', () => {
           },
         ],
         joinedAt: new Date('2024-01-01'),
-        vetoedMovieId: 50,
       });
+      session.vetoes = { bob: '50-alice' };
 
       const emitter = getSessionEmitter();
       const listener = vi.fn();
@@ -301,7 +310,7 @@ describe('redis.ts - Memory Fallback Mode', () => {
 
       expect(parsed.participants).toHaveLength(2);
       expect(parsed.participants[1].username).toBe('bob');
-      expect(parsed.participants[1].vetoedMovieId).toBe(50);
+      expect(parsed.vetoes.bob).toBe('50-alice');
       expect(parsed.participants[1].movies[0].id).toBe(100);
     });
   });
@@ -386,10 +395,11 @@ describe('redis.ts - Memory Fallback Mode', () => {
         host: 'alice',
         participants: [],
         createdAt: new Date(),
-        expiresAt: new Date(),
         isVotingOpen: false,
         maxParticipants: 8,
         votingPhase: 'ranking',
+        nominations: [],
+        vetoes: {},
       };
 
       await atomicSessionCreate('EMPTY', session, 3600);
@@ -442,29 +452,31 @@ describe('redis.ts - Memory Fallback Mode', () => {
           overview: 'Overview 2',
         },
       ];
-      session.participants[0].finalMovies = [
-        {
-          id: 2,
-          title: 'Movie 2',
-          poster_path: '/2.jpg',
-          release_date: '2024-01-02',
-          overview: 'Overview 2',
-        },
-        {
-          id: 1,
-          title: 'Movie 1',
-          poster_path: '/1.jpg',
-          release_date: '2024-01-01',
-          overview: 'Overview 1',
-        },
-      ];
+      session.finalRankings = {
+        alice: [
+          {
+            id: 2,
+            title: 'Movie 2',
+            poster_path: '/2.jpg',
+            release_date: '2024-01-02',
+            overview: 'Overview 2',
+          },
+          {
+            id: 1,
+            title: 'Movie 1',
+            poster_path: '/1.jpg',
+            release_date: '2024-01-01',
+            overview: 'Overview 1',
+          },
+        ],
+      };
 
       await atomicSessionCreate('DEEP', session, 3600);
       const retrieved = await atomicSessionUpdate('DEEP', 3600, (s) => s);
 
       expect(retrieved?.participants[0].movies).toHaveLength(2);
-      expect(retrieved?.participants[0].finalMovies).toHaveLength(2);
-      expect(retrieved?.participants[0].finalMovies?.[0].id).toBe(2);
+      expect(retrieved?.finalRankings.alice).toHaveLength(2);
+      expect(retrieved?.finalRankings.alice[0].id).toBe(2);
     });
   });
 });

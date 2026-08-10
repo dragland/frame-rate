@@ -3,6 +3,8 @@ import getRedisClient, { atomicSessionUpdate, publishSessionUpdate } from '@/lib
 import { Session, JoinSessionRequest, SessionResponse } from '../../../../lib/types';
 import { validateLetterboxdProfile } from '../../../../lib/letterboxd-server';
 import { SESSION_CONFIG } from '../../../../lib/constants';
+import { isEligibleVoter } from '../../../../lib/voting';
+import { isValidSessionCode, isValidUsername, normalizeSessionCode, normalizeUsername } from '../../../../lib/validation';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,8 +17,15 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    const sessionCode = code.trim().toUpperCase();
-    const trimmedUsername = username.trim();
+    if (!isValidSessionCode(code) || !isValidUsername(username)) {
+      return NextResponse.json<SessionResponse>({
+        success: false,
+        error: 'Invalid session code or username'
+      }, { status: 400 });
+    }
+
+    const sessionCode = normalizeSessionCode(code);
+    const trimmedUsername = normalizeUsername(username);
 
     // First check: Is user already in session? (read-only, no race condition concern)
     const redis = getRedisClient();
@@ -32,7 +41,9 @@ export async function POST(request: NextRequest) {
     const existingSession: Session = JSON.parse(sessionData);
 
     // Check if username already exists (allow rejoining)
-    const existingParticipant = existingSession.participants.find(p => p.username === trimmedUsername);
+    const existingParticipant = existingSession.participants.find(
+      p => p.username === trimmedUsername
+    );
 
     if (existingParticipant) {
       // User is rejoining - just return success with existing session
@@ -50,6 +61,16 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
+    // Mid-vote, only people whose nominations are in the frozen pool may
+    // (re)join — everyone in the pool contributed their top 2, so late
+    // arrivals can't get a veto without having nominated
+    if (existingSession.votingPhase !== 'ranking' && !isEligibleVoter(existingSession, trimmedUsername)) {
+      return NextResponse.json<SessionResponse>({
+        success: false,
+        error: 'Session has already started'
+      }, { status: 400 });
+    }
+
     // Validate Letterboxd profile BEFORE atomic transaction (external API call)
     const profile = await validateLetterboxdProfile(trimmedUsername);
 
@@ -61,13 +82,10 @@ export async function POST(request: NextRequest) {
       sessionCode,
       SESSION_CONFIG.TTL_SECONDS,
       (session: Session) => {
-        // Migration: Add votingPhase if missing (for backward compatibility)
-        if (!session.votingPhase) {
-          session.votingPhase = 'ranking';
-        }
-
         // Re-check if user joined while we were validating Letterboxd
-        const alreadyJoined = session.participants.find(p => p.username === trimmedUsername);
+        const alreadyJoined = session.participants.find(
+          p => p.username === trimmedUsername
+        );
         if (alreadyJoined) {
           // Return current session as-is (they rejoined via another request)
           return session;
@@ -79,10 +97,16 @@ export async function POST(request: NextRequest) {
           return null;
         }
 
-        // Add new participant
+        if (session.votingPhase !== 'ranking' && !isEligibleVoter(session, trimmedUsername)) {
+          validationError = 'Session has already started';
+          return null;
+        }
+
+        // Add the participant. A mid-vote rejoiner gets their movies back from
+        // the frozen pool (empty during ranking, where nominations is [])
         session.participants.push({
           username: trimmedUsername,
-          movies: [],
+          movies: session.nominations.filter(n => n.nominatedBy === trimmedUsername),
           joinedAt: new Date(),
           profilePicture: profile.profilePicture,
           letterboxdExists: profile.exists,

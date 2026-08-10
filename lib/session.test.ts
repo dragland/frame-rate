@@ -167,6 +167,17 @@ describe('session.ts', () => {
       expect(fn).toHaveBeenCalledWith();
     });
 
+    it('should cancel a pending call', () => {
+      const fn = vi.fn();
+      const debouncedFn = debounce(fn, 1000);
+
+      debouncedFn();
+      debouncedFn.cancel();
+      vi.advanceTimersByTime(1000);
+
+      expect(fn).not.toHaveBeenCalled();
+    });
+
     it('should preserve this context if bound', () => {
       const obj = {
         value: 42,

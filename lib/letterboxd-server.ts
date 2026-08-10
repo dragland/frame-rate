@@ -5,6 +5,7 @@
 
 import getRedisClient from './redis';
 import { CACHE_CONFIG } from './constants';
+import { fetchLetterboxdHtml } from './letterboxd-rating-server';
 
 export interface LetterboxdProfile {
   username: string;
@@ -29,10 +30,71 @@ const AVATAR_PATTERNS = [
   /<div[^>]+class="[^"]*avatar[^"]*"[^>]*style="[^"]*background-image:\s*url\(([^)]+)\)/i
 ];
 
+// next/image throws on hosts outside next.config.js remotePatterns, so a
+// scraped avatar URL must be host-checked before it's stored
+const ALLOWED_AVATAR_HOSTS = new Set(['a.ltrbxd.com', 's.ltrbxd.com', 'secure.gravatar.com', 'letterboxd.com']);
+
+function allowedAvatarUrl(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    return ALLOWED_AVATAR_HOSTS.has(new URL(url).hostname) ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * User agent for Letterboxd requests
+ * Cloudflare challenges Letterboxd profile pages (film pages and RSS feeds
+ * stay open). When the profile page is unreachable, the RSS feed answers
+ * "does this user exist?" and links their latest activity page, which shows
+ * their avatar.
  */
-const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36';
+async function fetchProfileViaRss(
+  username: string
+): Promise<{ profilePicture: string | null } | 'not-found' | null> {
+  const rss = await fetchLetterboxdHtml(`/${username}/rss/`);
+
+  if (rss === 'not-found' || rss === null) {
+    return rss;
+  }
+
+  const itemLink = rss.html.match(/<item>[\s\S]*?<link>([^<]+)<\/link>/i)?.[1];
+  if (!itemLink) {
+    // Exists, but no activity to pull an avatar from
+    return { profilePicture: null };
+  }
+
+  const page = await fetchLetterboxdHtml(itemLink.replace('https://letterboxd.com', ''));
+  if (page === null || page === 'not-found') {
+    return { profilePicture: null };
+  }
+
+  // The activity page renders avatars with alt set to the DISPLAY name (which
+  // can differ from the username), and includes other users' avatars further
+  // down (likers, commenters). The RSS <title> carries the same display name,
+  // so match on that; fall back to the page's first avatar (the author's).
+  const displayName = rss.html.match(/<title>Letterboxd - ([^<]+)<\/title>/i)?.[1]?.trim();
+
+  const findAvatarByAlt = (alt: string): string | undefined => {
+    const escaped = alt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return (
+      page.html.match(new RegExp(`<img[^>]+src="([^"]*avatar[^"]*)"[^>]+alt="${escaped}"`, 'i')) ??
+      page.html.match(new RegExp(`<img[^>]+alt="${escaped}"[^>]+src="([^"]*avatar[^"]*)"`, 'i'))
+    )?.[1];
+  };
+
+  const avatarUrl =
+    (displayName && findAvatarByAlt(displayName)) ||
+    findAvatarByAlt(username) ||
+    page.html.match(/<img[^>]+src="([^"]*\/avatar\/[^"]*)"/i)?.[1];
+
+  // Ask the CDN for a larger crop than the inline 24/48px one
+  const profilePicture = allowedAvatarUrl(
+    avatarUrl?.replace(/-0-\d+-0-\d+-crop/, '-0-220-0-220-crop') ?? null
+  );
+
+  return { profilePicture };
+}
 
 /**
  * Extracts profile picture URL from Letterboxd HTML
@@ -60,7 +122,7 @@ function extractProfilePicture(html: string): string | null {
 /**
  * Validates a Letterboxd profile and extracts profile picture
  * This is a server-side only function that scrapes Letterboxd
- * Results are cached for 7 days to reduce scraping load
+ * Results are cached (CACHE_CONFIG.TTL) to reduce scraping load
  *
  * @param username - The Letterboxd username to validate
  * @returns Profile information including existence and picture URL
@@ -76,7 +138,8 @@ export async function validateLetterboxdProfile(username: string): Promise<Lette
 
   const cleanUsername = username.trim().toLowerCase();
   const redis = getRedisClient();
-  const cacheKey = `letterboxd:profile:${cleanUsername}`;
+  // v2: v1 cached Cloudflare blocks as exists:false
+  const cacheKey = `letterboxd:profile:v2:${cleanUsername}`;
 
   try {
     // Check cache first
@@ -85,15 +148,21 @@ export async function validateLetterboxdProfile(username: string): Promise<Lette
       return JSON.parse(cached);
     }
 
-    const profileUrl = `https://letterboxd.com/${cleanUsername}/`;
+    const result = await fetchLetterboxdHtml(`/${cleanUsername}/`)
+      ?? await fetchProfileViaRss(cleanUsername);
 
-    const response = await fetch(profileUrl, {
-      headers: {
-        'User-Agent': USER_AGENT
-      }
-    });
+    // Blocked or unreachable — we don't actually know anything, so don't
+    // cache a wrong answer; the next attempt can retry
+    if (result === null) {
+      console.warn(`Letterboxd unreachable while validating profile: ${cleanUsername}`);
+      return {
+        username: cleanUsername,
+        profilePicture: null,
+        exists: false
+      };
+    }
 
-    const profile: LetterboxdProfile = !response.ok
+    const profile: LetterboxdProfile = result === 'not-found'
       ? {
           username: cleanUsername,
           profilePicture: null,
@@ -101,7 +170,9 @@ export async function validateLetterboxdProfile(username: string): Promise<Lette
         }
       : {
           username: cleanUsername,
-          profilePicture: extractProfilePicture(await response.text()),
+          profilePicture: 'profilePicture' in result
+            ? result.profilePicture
+            : allowedAvatarUrl(extractProfilePicture(result.html)),
           exists: true
         };
 

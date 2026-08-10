@@ -1,23 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import getRedisClient from '../../../../lib/redis';
 import { Session, SessionResponse } from '../../../../lib/types';
+import { isValidSessionCode, normalizeSessionCode } from '../../../../lib/validation';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { code: string } }
+  { params }: { params: Promise<{ code: string }> }
 ) {
   try {
-    const { code } = params;
+    const { code } = await params;
     
-    if (!code?.trim()) {
+    if (!code?.trim() || !isValidSessionCode(code)) {
       return NextResponse.json<SessionResponse>({ 
-        success: false, 
-        error: 'Session code is required' 
+        success: false,
+        error: 'Valid session code is required'
       }, { status: 400 });
     }
     
     const redis = getRedisClient();
-    const sessionKey = `session:${code.trim().toUpperCase()}`;
+    const sessionKey = `session:${normalizeSessionCode(code)}`;
     
     // Get session data
     const sessionData = await redis.get(sessionKey);
@@ -29,13 +30,8 @@ export async function GET(
     }
     
     const session: Session = JSON.parse(sessionData);
-    
-    // Migration: Add votingPhase if missing (for backward compatibility)
-    if (!session.votingPhase) {
-      session.votingPhase = 'ranking';
-    }
-    
-    return NextResponse.json<SessionResponse>({ 
+
+    return NextResponse.json<SessionResponse>({
       success: true, 
       session 
     });

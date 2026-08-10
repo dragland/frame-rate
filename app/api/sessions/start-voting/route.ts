@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { atomicSessionUpdate, publishSessionUpdate } from '@/lib/redis';
 import { Session, StartVotingRequest, SessionResponse } from '../../../../lib/types';
 import { SESSION_CONFIG } from '../../../../lib/constants';
-import { canStartVoting } from '../../../../lib/voting';
+import { canStartVoting, lockNominations } from '../../../../lib/voting';
+import { isValidSessionCode, isValidUsername, normalizeSessionCode, normalizeUsername } from '../../../../lib/validation';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,7 +16,15 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    const sessionCode = code.trim().toUpperCase();
+    if (!isValidSessionCode(code) || !isValidUsername(username)) {
+      return NextResponse.json<SessionResponse>({
+        success: false,
+        error: 'Invalid session code or username'
+      }, { status: 400 });
+    }
+
+    const sessionCode = normalizeSessionCode(code);
+    const trimmedUsername = normalizeUsername(username);
 
     // Track validation errors from inside the atomic modifier
     let validationError: string | null = null;
@@ -25,9 +34,14 @@ export async function POST(request: NextRequest) {
       SESSION_CONFIG.TTL_SECONDS,
       (session: Session) => {
         // Check if user is in session
-        const participant = session.participants.find(p => p.username === username.trim());
+        const participant = session.participants.find(p => p.username === trimmedUsername);
         if (!participant) {
           validationError = 'User not in session';
+          return null;
+        }
+
+        if (session.votingPhase !== 'ranking') {
+          validationError = 'Voting has already started';
           return null;
         }
 
@@ -37,16 +51,10 @@ export async function POST(request: NextRequest) {
           return null;
         }
 
-        // Update session to vetoing phase (skip locked phase)
+        // Freeze the nomination pool and move into the veto phase
+        lockNominations(session);
         session.votingPhase = 'vetoing';
         session.isVotingOpen = true;
-
-        // Reset veto status and final rankings
-        session.participants.forEach(p => {
-          p.hasVoted = false;
-          p.vetoedMovieId = undefined;
-          p.finalMovies = undefined;
-        });
 
         return session;
       }

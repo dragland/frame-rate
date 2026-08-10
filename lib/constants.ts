@@ -10,9 +10,6 @@ export const SESSION_CONFIG = {
   /** Session time-to-live in seconds (24 hours) */
   TTL_SECONDS: 24 * 60 * 60,
 
-  /** Session time-to-live in milliseconds (24 hours) */
-  TTL_MS: 24 * 60 * 60 * 1000,
-
   /** Maximum number of participants allowed in a session */
   MAX_PARTICIPANTS: 8,
 

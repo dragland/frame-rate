@@ -13,9 +13,10 @@ interface MovieCardProps {
   isInList: boolean;
   isExpanded: boolean;
   onToggleDescription: () => void;
+  disabled?: boolean;
 }
 
-export default function MovieCard({ movie, onAdd, onRemove, isInList, isExpanded, onToggleDescription }: MovieCardProps) {
+export default function MovieCard({ movie, onAdd, onRemove, isInList, isExpanded, onToggleDescription, disabled = false }: MovieCardProps) {
   const year = movie.release_date?.split('-')[0];
 
   return (
@@ -62,13 +63,16 @@ export default function MovieCard({ movie, onAdd, onRemove, isInList, isExpanded
 
         <button
           onClick={isInList ? onRemove : onAdd}
+          disabled={disabled}
           className={`w-full px-4 py-2 rounded-lg text-sm font-semibold transition-colors mb-3 ${
-            isInList
+            disabled
+              ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+              : isInList
               ? 'bg-gray-500 hover:bg-gray-600 text-white'
               : 'bg-green-600 hover:bg-green-700 text-white'
           }`}
         >
-          {isInList ? '− Cut' : '+ Nominate'}
+          {disabled ? 'Locked' : isInList ? '− Cut' : '+ Nominate'}
         </button>
 
         <div

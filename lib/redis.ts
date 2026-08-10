@@ -247,55 +247,91 @@ export const getRawRedisClient = (): Redis | null => {
  *
  * @param sessionCode - The session code (without 'session:' prefix)
  * @param ttl - TTL in seconds for the session
- * @param modifier - Function that takes current session and returns modified session (or null to abort)
- * @returns The modified session, or null if modifier returned null or session doesn't exist
+ * @param modifier - Function that takes current session and returns the modified
+ *   session, null to abort, or 'delete' to atomically delete the session (the
+ *   DEL runs inside the same optimistic lock, so a concurrent write retries
+ *   instead of being clobbered)
+ * @returns The modified session, 'deleted' if the modifier requested deletion,
+ *   or null if modifier returned null or session doesn't exist
  * @throws Error if max retries exceeded (concurrent modification conflict)
  */
-export const atomicSessionUpdate = async (
+export function atomicSessionUpdate(
   sessionCode: string,
   ttl: number,
   modifier: (session: Session) => Session | null
-): Promise<Session | null> => {
+): Promise<Session | null>;
+export function atomicSessionUpdate(
+  sessionCode: string,
+  ttl: number,
+  modifier: (session: Session) => Session | null | 'delete'
+): Promise<Session | null | 'deleted'>;
+export async function atomicSessionUpdate(
+  sessionCode: string,
+  ttl: number,
+  modifier: (session: Session) => Session | null | 'delete'
+): Promise<Session | null | 'deleted'> {
   const key = `session:${sessionCode}`;
   const rawRedis = getRawRedisClient();
 
   if (rawRedis) {
-    // Redis: Use WATCH/MULTI/EXEC for optimistic locking
-    for (let attempt = 0; attempt < MAX_ATOMIC_RETRIES; attempt++) {
-      await rawRedis.watch(key);
+    // Redis: WATCH/MULTI/EXEC optimistic locking. WATCH state is
+    // per-CONNECTION and any EXEC/UNWATCH clears every watch on it, so
+    // concurrent transactions on a shared client silently defeat each other —
+    // each atomic update gets its own dedicated connection.
+    const conn = rawRedis.duplicate();
 
-      const data = await rawRedis.get(key);
-      if (!data) {
-        await rawRedis.unwatch();
-        return null;
+    try {
+      for (let attempt = 0; attempt < MAX_ATOMIC_RETRIES; attempt++) {
+        await conn.watch(key);
+
+        const data = await conn.get(key);
+        if (!data) {
+          await conn.unwatch();
+          return null;
+        }
+
+        const session: Session = JSON.parse(data);
+
+        let modified: Session | null | 'delete';
+        try {
+          modified = modifier(session);
+        } catch (error) {
+          await conn.unwatch().catch(() => {});
+          throw error;
+        }
+
+        if (modified === null) {
+          await conn.unwatch();
+          return null;
+        }
+
+        const multi = conn.multi();
+        if (modified === 'delete') {
+          multi.del(key);
+        } else {
+          multi.setex(key, ttl, JSON.stringify(modified));
+        }
+        const result = await multi.exec();
+
+        if (result !== null) {
+          // Success - transaction committed
+          return modified === 'delete' ? 'deleted' : modified;
+        }
+        // result === null means WATCH detected a change, retry
+        console.log(`⚠️ Atomic update conflict on ${key}, retry ${attempt + 1}/${MAX_ATOMIC_RETRIES}`);
       }
 
-      const session: Session = JSON.parse(data);
-      const modified = modifier(session);
-
-      if (modified === null) {
-        await rawRedis.unwatch();
-        return null;
-      }
-
-      const multi = rawRedis.multi();
-      multi.setex(key, ttl, JSON.stringify(modified));
-      const result = await multi.exec();
-
-      if (result !== null) {
-        // Success - transaction committed
-        return modified;
-      }
-      // result === null means WATCH detected a change, retry
-      console.log(`⚠️ Atomic update conflict on ${key}, retry ${attempt + 1}/${MAX_ATOMIC_RETRIES}`);
+      throw new Error(`Atomic update failed after ${MAX_ATOMIC_RETRIES} retries - too much contention on ${key}`);
+    } finally {
+      conn.disconnect();
     }
-
-    throw new Error(`Atomic update failed after ${MAX_ATOMIC_RETRIES} retries - too much contention on ${key}`);
   } else {
-    // Memory fallback: Use simple mutex
-    // Wait for any existing lock on this key
-    const existingLock = memoryLocks.get(key);
-    if (existingLock) {
+    // Memory fallback: Use simple mutex. Re-check after every wake so two
+    // waiters released by the same lock can't both enter; this (and atomicity
+    // overall) relies on the critical section below staying synchronous —
+    // modifiers must not be async.
+    let existingLock;
+    while ((existingLock = memoryLocks.get(key))) {
       await existingLock;
     }
 
@@ -317,6 +353,11 @@ export const atomicSessionUpdate = async (
 
       if (modified === null) {
         return null;
+      }
+
+      if (modified === 'delete') {
+        memoryStore.delete(key);
+        return 'deleted';
       }
 
       memoryStore.set(key, JSON.stringify(modified));
