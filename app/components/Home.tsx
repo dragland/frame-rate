@@ -399,7 +399,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
       if (requestedWatchlistsRef.current.has(participant.username)) return;
       requestedWatchlistsRef.current.add(participant.username);
 
-      getLetterboxdWatchlist(participant.username).then(slugs => {
+      getLetterboxdWatchlist(participant.username, sessionData.code).then(slugs => {
         if (slugs.length > 0) {
           setWatchlists(prev => ({ ...prev, [participant.username]: slugs }));
         }

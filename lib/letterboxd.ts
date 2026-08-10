@@ -31,9 +31,12 @@ export const filmSlugFromUrl = (filmUrl: string | undefined): string | null => {
   return match ? match[1] : null;
 };
 
-export const getLetterboxdWatchlist = async (username: string): Promise<string[]> => {
+// sessionCode required: the route only serves usernames belonging to that session
+export const getLetterboxdWatchlist = async (username: string, sessionCode: string): Promise<string[]> => {
   try {
-    const response = await fetch(`/api/letterboxd/watchlist?username=${encodeURIComponent(username)}`);
+    const response = await fetch(
+      `/api/letterboxd/watchlist?username=${encodeURIComponent(username)}&code=${encodeURIComponent(sessionCode)}`
+    );
 
     if (!response.ok) {
       return [];
