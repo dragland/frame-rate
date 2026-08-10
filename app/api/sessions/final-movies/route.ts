@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { atomicSessionUpdate, publishSessionUpdate } from '@/lib/redis';
 import { Session, UpdateFinalMoviesRequest, SessionResponse } from '../../../../lib/types';
 import { SESSION_CONFIG } from '../../../../lib/constants';
-import { advanceVotingPhaseIfComplete, getRemainingMovies, isExactMovieSet, orderMoviesFromCanonicalSet } from '../../../../lib/voting';
+import { advanceVotingPhaseIfComplete, getRemainingMovies, hasFinalRanked, isExactMovieSet, orderMoviesFromCanonicalSet } from '../../../../lib/voting';
 import { isMovieArrayPayload, isValidSessionCode, isValidUsername, normalizeSessionCode, normalizeUsername } from '../../../../lib/validation';
 
 export async function POST(request: NextRequest) {
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
           return null;
         }
 
-        if (trimmedUsername in session.finalRankings) {
+        if (hasFinalRanked(session, trimmedUsername)) {
           validationError = 'Final ranking is already locked';
           return null;
         }

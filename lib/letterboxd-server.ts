@@ -30,6 +30,19 @@ const AVATAR_PATTERNS = [
   /<div[^>]+class="[^"]*avatar[^"]*"[^>]*style="[^"]*background-image:\s*url\(([^)]+)\)/i
 ];
 
+// next/image throws on hosts outside next.config.js remotePatterns, so a
+// scraped avatar URL must be host-checked before it's stored
+const ALLOWED_AVATAR_HOSTS = new Set(['a.ltrbxd.com', 's.ltrbxd.com', 'secure.gravatar.com', 'letterboxd.com']);
+
+function allowedAvatarUrl(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    return ALLOWED_AVATAR_HOSTS.has(new URL(url).hostname) ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Cloudflare challenges Letterboxd profile pages (film pages and RSS feeds
  * stay open). When the profile page is unreachable, the RSS feed answers
@@ -76,7 +89,9 @@ async function fetchProfileViaRss(
     page.html.match(/<img[^>]+src="([^"]*\/avatar\/[^"]*)"/i)?.[1];
 
   // Ask the CDN for a larger crop than the inline 24/48px one
-  const profilePicture = avatarUrl?.replace(/-0-\d+-0-\d+-crop/, '-0-220-0-220-crop') ?? null;
+  const profilePicture = allowedAvatarUrl(
+    avatarUrl?.replace(/-0-\d+-0-\d+-crop/, '-0-220-0-220-crop') ?? null
+  );
 
   return { profilePicture };
 }
@@ -107,7 +122,7 @@ function extractProfilePicture(html: string): string | null {
 /**
  * Validates a Letterboxd profile and extracts profile picture
  * This is a server-side only function that scrapes Letterboxd
- * Results are cached for 7 days to reduce scraping load
+ * Results are cached (CACHE_CONFIG.TTL) to reduce scraping load
  *
  * @param username - The Letterboxd username to validate
  * @returns Profile information including existence and picture URL
@@ -157,7 +172,7 @@ export async function validateLetterboxdProfile(username: string): Promise<Lette
           username: cleanUsername,
           profilePicture: 'profilePicture' in result
             ? result.profilePicture
-            : extractProfilePicture(result.html),
+            : allowedAvatarUrl(extractProfilePicture(result.html)),
           exists: true
         };
 

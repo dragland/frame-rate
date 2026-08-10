@@ -7,7 +7,7 @@
 ```typescript
 const updated = await atomicSessionUpdate(code, ttl, (session) => {
   // modify session
-  return session; // or null to abort
+  return session; // null to abort, or 'delete' to atomically remove the session
 });
 await publishSessionUpdate(code, updated);  // SSE broadcast
 ```
@@ -18,21 +18,20 @@ await publishSessionUpdate(code, updated);  // SSE broadcast
 ranking → vetoing → finalRanking → results
 ```
 
-The `ranking` phase is the staging phase where each participant drags their nominations into order. Starting voting freezes each participant's top 2 into `session.nominations` (`lockNominations`) and moves to `vetoing`. All later transitions go through `advanceVotingPhaseIfComplete` (lib/voting.ts) — called from the veto, final-movies, and leave routes; `vetoing` skips straight to `results` if ≤1 movie remains after vetoes.
+The `ranking` phase is the staging phase where each participant drags their nominations into order. Starting voting freezes each participant's top 2 into `session.nominations` (`lockNominations`) and moves to `vetoing`. All later transitions go through `advanceVotingPhaseIfComplete` (lib/voting.ts) — called from the veto and final-movies routes only; `vetoing` skips straight to `results` if ≤1 movie remains after vetoes.
 
 ## Key Patterns
 
 - **Validation in atomic modifiers**: Capture errors in closure variable, return `null` to abort, check after for HTTP status
 - **Input validation**: `lib/validation.ts` gates every route — codes `[A-Z]{4}`, usernames `[a-z0-9_]{1,32}`, movie payloads shape+size checked
 - **Usernames**: always stored lowercase (`normalizeUsername` on every entry point, incl. client localStorage reads) — comparisons are strict equality
-- **Frozen pool**: `session.nominations` + `session.vetoes` (username → nominationId) live on the session, never on participants — leaving/rejoining can't change the pool, undo a veto, or enable a double veto
+- **Frozen pool**: `session.nominations`, `session.vetoes`, and `session.finalRankings` live on the session, never on participants — leaving/rejoining can't change the pool or voting state, and phase completion is judged against the pool's eligible voters, so presence neither blocks nor fast-forwards phases (leave only reassigns host to `participants[0]` if needed)
 - **Rejoin eligibility**: mid-vote joins allowed only for usernames with nominations in the frozen pool (`isEligibleVoter`); their movies are restored from it
-- **Leave route**: reassigns host to `participants[0]` if the host left, then re-runs phase advancement (the leaver may have been the last blocker)
 - **Storage**: `lib/redis.ts` abstracts Redis (prod) / in-memory Map (dev) - auto-detected by `REDIS_URL`
 - **SSE race condition**: Subscribe to pub/sub BEFORE fetching state (see `stream/route.ts`)
 - **Duplicate nominations**: Same movie from different users → `nominationId` (`"movieId-username"`, required) is the canonical veto target
 - **Voting ties**: Random coin flip + UI feedback
-- **Letterboxd profile scraping** (`lib/letterboxd-server.ts`): Fragile regex patterns for avatar extraction
+- **Letterboxd profile scraping** (`lib/letterboxd-server.ts`): direct fetch → RSS + activity-page fallback (avatar matched by display name, which can differ from username); blocked lookups are never cached; cache key `letterboxd:profile:v2:*` (v1 wrongly cached Cloudflare blocks as `exists:false`)
 - **Letterboxd rating scraping** (`lib/letterboxd-rating-server.ts`): Direct fetch with Jina Reader proxy fallback on Cloudflare; parses `twitter:data2` meta with JSON-LD fallback
 
 <!-- BEGIN:nextjs-agent-rules -->

@@ -3,7 +3,7 @@
 import React, { useRef, useState } from 'react';
 import { Session } from '../../lib/types';
 import { Movie, getImageUrl, formatRuntime } from '../../lib/tmdb';
-import { getRemainingMovies, getRemainingNominations, hasVetoed, vetoNomination, updateFinalMovies } from '../../lib/voting';
+import { getEligibleVoters, getRemainingMovies, getRemainingNominations, hasFinalRanked, hasVetoed, vetoNomination, updateFinalMovies } from '../../lib/voting';
 import ProfilePicture from './ProfilePicture';
 import Image from 'next/image';
 
@@ -31,7 +31,13 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
   const userVetoedNomination = hasUserVetoed
     ? session.nominations.find(nomination => nomination.nominationId === session.vetoes[username])
     : undefined;
-  const hasUserFinalRanked = username in session.finalRankings;
+  const hasUserFinalRanked = hasFinalRanked(session, username);
+
+  // Progress is tracked per ELIGIBLE VOTER (the frozen pool), not per present
+  // participant — someone who left without voting must stay visible as the
+  // person everyone is waiting on
+  const eligibleVoters = getEligibleVoters(session);
+  const participantsByName = new Map(session.participants.map(p => [p.username, p]));
 
   React.useEffect(() => {
     return () => {
@@ -145,20 +151,27 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
           </p>
         )}
         
-        {/* Veto progress with profile pictures */}
+        {/* Veto progress across all eligible voters, present or not */}
         <div className="mt-4">
           <div className="flex justify-center items-center space-x-1 flex-wrap gap-1">
-            {session.participants.map((participant) => {
-              const voted = hasVetoed(session, participant.username);
+            {eligibleVoters.map((voter) => {
+              const voted = hasVetoed(session, voter);
+              const isPresent = participantsByName.has(voter);
               return (
                 <div
-                  key={participant.username}
+                  key={voter}
                   className={`relative ${voted ? 'opacity-100' : 'opacity-40'}`}
-                  title={voted ? `${participant.username} - Voted` : `${participant.username} - Waiting`}
+                  title={
+                    voted
+                      ? `${voter} - Voted`
+                      : isPresent
+                        ? `${voter} - Waiting`
+                        : `${voter} - Left, waiting for them to rejoin`
+                  }
                 >
                   <ProfilePicture
-                    username={participant.username}
-                    profilePicture={participant.profilePicture}
+                    username={voter}
+                    profilePicture={participantsByName.get(voter)?.profilePicture}
                     size="sm"
                   />
                   {voted && (
@@ -166,10 +179,20 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
                       <span className="text-[8px] text-white">✓</span>
                     </div>
                   )}
+                  {!voted && !isPresent && (
+                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-gray-600 rounded-full border border-gray-900 flex items-center justify-center">
+                      <span className="text-[8px] text-white">💤</span>
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
+          {eligibleVoters.some(v => !hasVetoed(session, v) && !participantsByName.has(v)) && (
+            <p className="mt-2 text-xs text-gray-500">
+              Waiting on {eligibleVoters.filter(v => !hasVetoed(session, v) && !participantsByName.has(v)).join(', ')} — they left but can rejoin with the session link
+            </p>
+          )}
         </div>
       </div>
 
@@ -185,7 +208,9 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
                 key={nomination.nominationId}
                 className={`flex items-center space-x-3 p-3 bg-gray-800 rounded-lg transition-all ${nomination.letterboxdRating ? 'hover:bg-gray-700 cursor-pointer' : ''} ${armedVetoId === nomination.nominationId ? 'ring-2 ring-red-500' : ''}`}
                 onClick={() => {
-                  if (nomination.letterboxdRating) {
+                  // While this row's veto is armed, a row tap is likely a
+                  // missed Confirm — don't yank the user to Letterboxd
+                  if (nomination.letterboxdRating && armedVetoId !== nomination.nominationId) {
                     window.open(nomination.letterboxdRating.filmUrl, '_blank');
                   }
                 }}
@@ -224,6 +249,8 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
                     handleVetoButton(nomination.nominationId);
                   }}
                   disabled={isLoading}
+                  aria-pressed={armedVetoId === nomination.nominationId}
+                  aria-label={`Veto ${nomination.title}`}
                   className={`px-3 py-1 rounded font-semibold flex items-center space-x-1 flex-shrink-0 transition-colors ${
                     armedVetoId === nomination.nominationId
                       ? 'bg-red-600 hover:bg-red-700 text-white'
@@ -265,20 +292,27 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
           </p>
         )}
         
-        {/* Final ranking progress with profile pictures */}
+        {/* Final ranking progress across all eligible voters, present or not */}
         <div className="mt-4">
           <div className="flex justify-center items-center space-x-1 flex-wrap gap-1">
-            {session.participants.map((participant) => {
-              const hasCompleted = participant.username in session.finalRankings;
+            {eligibleVoters.map((voter) => {
+              const hasCompleted = hasFinalRanked(session, voter);
+              const isPresent = participantsByName.has(voter);
               return (
                 <div
-                  key={participant.username}
+                  key={voter}
                   className={`relative ${hasCompleted ? 'opacity-100' : 'opacity-40'}`}
-                  title={hasCompleted ? `${participant.username} - Completed` : `${participant.username} - Waiting`}
+                  title={
+                    hasCompleted
+                      ? `${voter} - Completed`
+                      : isPresent
+                        ? `${voter} - Waiting`
+                        : `${voter} - Left, waiting for them to rejoin`
+                  }
                 >
-                  <ProfilePicture 
-                    username={participant.username}
-                    profilePicture={participant.profilePicture}
+                  <ProfilePicture
+                    username={voter}
+                    profilePicture={participantsByName.get(voter)?.profilePicture}
                     size="sm"
                   />
                   {hasCompleted && (
@@ -286,10 +320,20 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
                       <span className="text-[8px] text-white">✓</span>
                     </div>
                   )}
+                  {!hasCompleted && !isPresent && (
+                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-gray-600 rounded-full border border-gray-900 flex items-center justify-center">
+                      <span className="text-[8px] text-white">💤</span>
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
+          {eligibleVoters.some(v => !hasFinalRanked(session, v) && !participantsByName.has(v)) && (
+            <p className="mt-2 text-xs text-gray-500">
+              Waiting on {eligibleVoters.filter(v => !hasFinalRanked(session, v) && !participantsByName.has(v)).join(', ')} — they left but can rejoin with the session link
+            </p>
+          )}
         </div>
       </div>
 
@@ -468,31 +512,10 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
     );
   };
 
-  const renderRankingPhase = () => (
-    <div className="text-center">
-      <div className="text-6xl mb-4">🗳️</div>
-      <h3 className="text-xl font-semibold mb-4 text-white">Ready to Vote?</h3>
-      <p className="text-gray-400 mb-6">
-        Once you lock votes, all movie rankings will be locked and no one can make changes.
-      </p>
-              <div className="mb-6 p-4 bg-blue-900 border border-blue-800 rounded-lg">
-          <h4 className="font-semibold mb-2 text-white">How it works:</h4>
-          <ol className="text-left text-sm text-gray-400 space-y-1">
-          <li>1. Only your top 2 picks enter the voting pool</li>
-          <li>2. Everyone picks one movie to eliminate</li>
-          <li>3. Final rankings determine the winner</li>
-        </ol>
-      </div>
-      <div className="text-sm text-gray-500 dark:text-gray-400">
-        Use the sidebar button to lock votes.
-      </div>
-    </div>
-  );
-
   const renderContent = () => {
+    // The modal is only ever opened once voting has started, so 'ranking'
+    // has no case here
     switch (session.votingPhase) {
-      case 'ranking':
-        return renderRankingPhase();
       case 'vetoing':
         return renderVetoingPhase();
       case 'finalRanking':

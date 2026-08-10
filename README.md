@@ -59,6 +59,8 @@ app/
 ├── components/        # React UI components
 ├── api/sessions/      # Session management APIs
 ├── api/search/        # TMDB movie search
+├── api/movie/         # TMDB movie details
+├── api/letterboxd/    # Letterboxd rating + profile lookups
 └── [code]/            # Dynamic session pages
 lib/
 ├── voting.ts          # Ranked choice voting algo
@@ -70,7 +72,7 @@ lib/
 
 ## Tech Stack
 
-- **Framework**: Next.js 14 + TypeScript
+- **Framework**: Next.js 16 + React 19 + TypeScript
 - **Styling**: Tailwind CSS  
 - **Session Storage**: Redis (prod) / In-memory (dev)
 - **APIs**: TMDB + Letterboxd scraping

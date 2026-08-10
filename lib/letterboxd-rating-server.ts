@@ -14,6 +14,11 @@ const LETTERBOXD_HEADERS = {
   'Accept-Language': 'en-US,en;q=0.9',
 };
 
+// Optional: raises Jina Reader's rate limit from 20 to 500 requests/min
+const JINA_AUTH_HEADERS: Record<string, string> = process.env.JINA_API_KEY
+  ? { Authorization: `Bearer ${process.env.JINA_API_KEY}` }
+  : {};
+
 function isCloudflareChallenge(html: string): boolean {
   return html.includes('challenges.cloudflare.com') || html.includes('<title>Just a moment...</title>');
 }
@@ -123,13 +128,16 @@ async function fetchProxiedLetterboxdHtml(path: string): Promise<LetterboxdFetch
     const response = await fetch(`${JINA_READER_BASE_URL}${letterboxdUrl}`, {
       headers: {
         ...LETTERBOXD_HEADERS,
+        ...JINA_AUTH_HEADERS,
         'X-Respond-With': 'html',
       },
       signal: AbortSignal.timeout(15_000),
     });
 
-    // Jina forwards the upstream status for missing pages
-    if (response.status === 404 || response.status === 422) {
+    // Jina forwards a 404 for missing pages. Its 422s are ambiguous (also
+    // used for Jina-side fetch failures), so those fall through to null —
+    // retryable rather than cached as not-found
+    if (response.status === 404) {
       return 'not-found';
     }
 

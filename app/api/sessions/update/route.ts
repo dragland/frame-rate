@@ -3,7 +3,7 @@ import { atomicSessionUpdate, publishSessionUpdate } from '@/lib/redis';
 import { Session, UpdateMoviesRequest, SessionResponse } from '../../../../lib/types';
 import { SESSION_CONFIG } from '../../../../lib/constants';
 import { hasDuplicateMovieIds } from '../../../../lib/voting';
-import { isMovieArrayPayload, isValidSessionCode, isValidUsername, normalizeSessionCode, normalizeUsername } from '../../../../lib/validation';
+import { isMovieArrayPayload, isValidSessionCode, isValidUsername, normalizeSessionCode, normalizeUsername, sanitizeMovies } from '../../../../lib/validation';
 
 export async function PUT(request: NextRequest) {
   try {
@@ -56,8 +56,8 @@ export async function PUT(request: NextRequest) {
           return null;
         }
 
-        // Update participant's movies
-        participant.movies = movies;
+        // Update participant's movies (rebuilt from allowlisted fields)
+        participant.movies = sanitizeMovies(movies);
 
         return session;
       }

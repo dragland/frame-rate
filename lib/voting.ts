@@ -44,8 +44,14 @@ export const isEligibleVoter = (session: Session, username: string): boolean => 
   return session.nominations.some(nomination => nomination.nominatedBy === username);
 };
 
+// Object.hasOwn (not `in`): these maps are JSON-parsed plain objects, so `in`
+// would answer true for inherited keys like 'constructor'
 export const hasVetoed = (session: Session, username: string): boolean => {
-  return username in session.vetoes;
+  return Object.hasOwn(session.vetoes, username);
+};
+
+export const hasFinalRanked = (session: Session, username: string): boolean => {
+  return Object.hasOwn(session.finalRankings, username);
 };
 
 // Get remaining nominations after vetoes
@@ -93,8 +99,9 @@ export const orderMoviesFromCanonicalSet = (movies: Movie[], canonicalMovies: Mo
 // nomination order from the frozen pool if they never submitted one
 const getBallots = (session: Session): Movie[][] => {
   return getEligibleVoters(session).map(username =>
-    session.finalRankings[username] ??
-      session.nominations.filter(n => n.nominatedBy === username)
+    Object.hasOwn(session.finalRankings, username)
+      ? session.finalRankings[username]
+      : session.nominations.filter(n => n.nominatedBy === username)
   );
 };
 
@@ -234,9 +241,10 @@ export const calculateRankedChoiceWinner = (session: Session): VotingResults => 
   };
 };
 
-// Advance the phase when every participant has completed the current phase's action.
-// Called at the end of every atomic modifier that can complete a phase (veto,
-// final-movies, leave) so the transition rules live in exactly one place.
+// Advance the phase when every eligible voter has completed the current
+// phase's action. Called from the veto and final-movies routes so the
+// transition rules live in exactly one place; presence is irrelevant, so the
+// leave route deliberately does not call this.
 export const advanceVotingPhaseIfComplete = (session: Session): void => {
   const eligibleVoters = getEligibleVoters(session);
 
@@ -254,11 +262,11 @@ export const advanceVotingPhaseIfComplete = (session: Session): void => {
   if (session.votingPhase === 'finalRanking') {
     const remainingMovies = getRemainingMovies(session);
     const allCompleted = eligibleVoters.every(voter => {
-      const ranking = session.finalRankings[voter];
+      const ranking = hasFinalRanked(session, voter) ? session.finalRankings[voter] : undefined;
       return ranking && isExactMovieSet(ranking, remainingMovies);
     });
 
-    if (remainingMovies.length <= 1 || allCompleted) {
+    if (allCompleted) {
       session.votingPhase = 'results';
       session.votingResults = calculateRankedChoiceWinner(session);
     }

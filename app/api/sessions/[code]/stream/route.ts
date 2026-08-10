@@ -10,6 +10,10 @@ import { isValidSessionCode, normalizeSessionCode } from '@/lib/validation';
 /** Heartbeat interval to keep Render connections alive (30s) */
 const HEARTBEAT_INTERVAL_MS = 30000;
 
+// SSE must never be cached; explicit in case a future Next version flips
+// route-handler caching defaults again
+export const dynamic = 'force-dynamic';
+
 /**
  * Server-Sent Events endpoint for real-time session updates
  *

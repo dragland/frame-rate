@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { searchMovies, Movie, getMovieDetails, formatRuntime } from '@/lib/tmdb';
 import { getLetterboxdRating } from '@/lib/letterboxd';
@@ -223,7 +223,11 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
       } catch (error) {
         console.warn('Failed to save nominations:', error);
       }
-      hasPendingMovieSaveRef.current = false;
+      // Only clear the sync guard if no newer edit happened while saving,
+      // so an SSE echo of this save can't revert a fresher local order
+      if (movies === myMoviesRef.current) {
+        hasPendingMovieSaveRef.current = false;
+      }
     }
   }, [activeSessionCode, sessionMode, username]);
 
@@ -341,7 +345,8 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
       }
     }
 
-    localStorage.removeItem('frameRateUsername');
+    // Keep the stored username: leaving is cheap and rejoining via the
+    // session link should just work
     window.location.href = '/';
   };
 
@@ -422,7 +427,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
             // Advisory only — the server is the authority on submit. New
             // joins are rejected mid-vote, but existing players can rejoin.
             if (data.session?.votingPhase && data.session.votingPhase !== 'ranking') {
-              setJoinNotice('Voting has already started — only players already in this session can rejoin.');
+              setJoinNotice('Voting has already started — players who nominated before it started can rejoin.');
             }
           } else {
             window.history.replaceState({}, '', '/');

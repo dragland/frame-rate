@@ -49,6 +49,7 @@ const createTestSession = (code: string = 'TEST'): Session => ({
   votingPhase: 'ranking',
   nominations: [],
   vetoes: {},
+  finalRankings: {},
 });
 
 describe('redis.ts - Memory Fallback Mode', () => {
