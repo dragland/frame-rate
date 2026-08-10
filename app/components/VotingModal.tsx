@@ -150,7 +150,7 @@ export default function VotingModal({ session, username, getWatchlistedBy, onClo
         </h3>
         {!hasUserVetoed && (
           <p className="text-gray-400 text-sm">
-            Tap Veto, then Confirm to eliminate one film — no undo
+            Tap Veto, then Confirm to eliminate one film — anonymous, no undo
           </p>
         )}
         
@@ -238,11 +238,12 @@ export default function VotingModal({ session, username, getWatchlistedBy, onClo
                       className={`rounded ${isVetoedNomination ? 'grayscale' : ''}`}
                     />
                     {isVetoedNomination && (
-                      <span className="absolute inset-0 flex items-center justify-center text-lg">💀</span>
+                      <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-lg">💀</span>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className={`font-semibold text-sm truncate text-white ${isVetoedNomination ? 'line-through' : ''}`}>
+                      {isVetoedNomination && <span className="sr-only">Vetoed: </span>}
                       {nomination.title}
                     </div>
                     <div className="text-xs text-gray-500 dark:text-gray-400 space-x-2">

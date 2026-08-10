@@ -6,19 +6,25 @@ import { isEligibleVoter } from '@/lib/voting';
 import { isValidSessionCode, isValidUsername, normalizeSessionCode, normalizeUsername } from '@/lib/validation';
 
 export const dynamic = 'force-dynamic';
-// The pagination walk is budgeted at ~20s (WALK_BUDGET_MS); give the route
-// headroom past that instead of the platform default
-export const maxDuration = 30;
+// Worst case: the ~20s walk budget is checked at batch boundaries, and one
+// final batch can add up to ~25s (direct + Jina fallback timeouts) — 60s
+// covers the true ceiling instead of killing the walk mid-batch
+export const maxDuration = 60;
 
 const emptyResponse = (status: number) =>
   NextResponse.json<LetterboxdWatchlist>({ username: '', slugs: [] }, { status });
 
 /**
- * Watchlists are public data, but a cold lookup costs up to 20 upstream page
- * fetches — so unlike the profile/rating routes, this one is gated: the
+ * Watchlists are public data, but a cold lookup costs up to ~100 upstream
+ * page fetches — so unlike the profile/rating routes, this one is gated: the
  * username must belong to a live session (as a participant, or in the frozen
  * nomination pool for mid-vote rejoiners), which keeps the endpoint from
  * being a free scraping proxy for arbitrary usernames.
+ *
+ * Known residual: a determined caller can mint their own session under any
+ * username and pass the gate. Accepted — session creation already triggers
+ * profile scraping ungated, results cache for 6h, and the walk is
+ * time-budgeted, so the gate's job is raising cost, not perfect authz.
  */
 export async function GET(request: NextRequest) {
   try {

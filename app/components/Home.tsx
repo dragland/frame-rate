@@ -617,7 +617,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
               target="_blank"
               rel="noopener noreferrer"
               title={`${username} on Letterboxd`}
-              className="hidden md:flex items-center space-x-2 font-mono text-orange-400 hover:text-orange-300 transition-colors flex-shrink-0"
+              className="hidden md:flex items-center space-x-2 font-mono text-orange-400 hover:text-orange-300 hover:underline transition-colors flex-shrink-0"
             >
               {sessionData && (
                 <ProfilePicture
@@ -780,7 +780,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
                         target="_blank"
                         rel="noopener noreferrer"
                         title={`${participant.username} on Letterboxd`}
-                        className="flex items-center space-x-2 mb-2 w-fit hover:opacity-75 transition-opacity"
+                        className="flex items-center space-x-2 mb-1 w-fit py-1 hover:text-orange-300 hover:underline transition-colors"
                       >
                         <ProfilePicture
                           username={participant.username}

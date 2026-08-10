@@ -70,6 +70,17 @@ export function extractWatchlistPageCount(html: string): number {
   return last;
 }
 
+/**
+ * The film count Letterboxd declares on page 1 ("2,150 films"), or null when
+ * the element is missing. This is the all-or-nothing ground truth: a walk
+ * whose collected slugs don't match it is discarded rather than cached.
+ */
+export function extractWatchlistFilmCount(html: string): number | null {
+  const match = html.match(/js-watchlist-count[^>]*>([\d,]+)/);
+  if (!match) return null;
+  return Number.parseInt(match[1].replace(/,/g, ''), 10);
+}
+
 export async function fetchLetterboxdWatchlist(username: string): Promise<LetterboxdWatchlist> {
   const cleanUsername = username.trim().toLowerCase();
 
@@ -96,7 +107,12 @@ async function walkWatchlist(cleanUsername: string): Promise<LetterboxdWatchlist
   const cacheKey = `letterboxd:watchlist:v2:${cleanUsername}`;
 
   const cacheAndReturn = async (watchlist: LetterboxdWatchlist): Promise<LetterboxdWatchlist> => {
-    await redis.setex(cacheKey, CACHE_CONFIG.TTL, JSON.stringify(watchlist));
+    try {
+      await redis.setex(cacheKey, CACHE_CONFIG.TTL, JSON.stringify(watchlist));
+    } catch (error) {
+      // A failed cache write shouldn't discard a successfully assembled walk
+      console.warn('Letterboxd watchlist cache write failed:', error);
+    }
     return watchlist;
   };
 
@@ -115,22 +131,24 @@ async function walkWatchlist(cleanUsername: string): Promise<LetterboxdWatchlist
     }
     if (first === 'not-found') {
       // No such user (or hidden watchlist) — a real answer, cacheable
-      return cacheAndReturn(empty);
+      return await cacheAndReturn(empty);
     }
 
     const slugs = new Set<string>(extractWatchlistSlugs(first.html));
     const pageCount = extractWatchlistPageCount(first.html);
+    const declaredCount = extractWatchlistFilmCount(first.html);
 
-    if (pageCount > 1 && slugs.size === 0) {
-      // Pagination says films exist but the parser found none — markup
-      // changed again. Unavailable (uncached) beats silently badge-less.
-      console.warn(`Letterboxd watchlist parser found 0 slugs on page 1 for ${cleanUsername} (${pageCount} pages)`);
+    if (slugs.size === 0 && (pageCount > 1 || (declaredCount ?? 0) > 0)) {
+      // The page says films exist but the parser found none — markup changed
+      // again. Unavailable (uncached) beats silently caching "empty"; the
+      // declaredCount check catches this for single-page watchlists too.
+      console.warn(`Letterboxd watchlist parser found 0 slugs on page 1 for ${cleanUsername} (${pageCount} pages, ${declaredCount ?? '?'} films declared)`);
       return empty;
     }
 
     if (pageCount > MAX_WATCHLIST_PAGES) {
       console.warn(`Letterboxd watchlist for ${cleanUsername} has ${pageCount} pages (max ${MAX_WATCHLIST_PAGES}) — treating as unavailable`);
-      return cacheAndReturn(empty);
+      return await cacheAndReturn(empty);
     }
 
     // Fetch remaining pages in parallel batches; ANY failure (block, 404,
@@ -161,7 +179,15 @@ async function walkWatchlist(cleanUsername: string): Promise<LetterboxdWatchlist
       }
     }
 
-    return cacheAndReturn({ username: cleanUsername, slugs: Array.from(slugs) });
+    if (declaredCount !== null && slugs.size !== declaredCount) {
+      // All-or-nothing invariant: collected slugs must match the declared
+      // count, else pagination lied (shrink race, hidden pages, parser gap) —
+      // uncached so the next attempt sees a consistent snapshot
+      console.warn(`Letterboxd watchlist for ${cleanUsername}: collected ${slugs.size} slugs but page declares ${declaredCount} films — discarding walk`);
+      return empty;
+    }
+
+    return await cacheAndReturn({ username: cleanUsername, slugs: Array.from(slugs) });
   } catch (error) {
     console.error('Failed to fetch Letterboxd watchlist:', error);
     return empty;
