@@ -5,6 +5,7 @@ import getRedisClient, {
   unsubscribeFromSession,
 } from '@/lib/redis';
 import { Session } from '@/lib/types';
+import { isValidSessionCode, normalizeSessionCode } from '@/lib/validation';
 
 /** Heartbeat interval to keep Render connections alive (30s) */
 const HEARTBEAT_INTERVAL_MS = 30000;
@@ -19,15 +20,15 @@ const HEARTBEAT_INTERVAL_MS = 30000;
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { code: string } }
+  { params }: { params: Promise<{ code: string }> }
 ) {
-  const { code } = params;
+  const { code } = await params;
 
-  if (!code?.trim()) {
-    return new Response('Session code is required', { status: 400 });
+  if (!code?.trim() || !isValidSessionCode(code)) {
+    return new Response('Valid session code is required', { status: 400 });
   }
 
-  const sessionCode = code.trim().toUpperCase();
+  const sessionCode = normalizeSessionCode(code);
   const sessionKey = `session:${sessionCode}`;
   const channel = `session:${sessionCode}`;
   const encoder = new TextEncoder();
@@ -67,11 +68,8 @@ export async function GET(
         return;
       }
 
-      // Send initial state with migration
+      // Send initial state
       const session: Session = JSON.parse(sessionData);
-      if (!session.votingPhase) {
-        session.votingPhase = 'ranking';
-      }
       controller.enqueue(encoder.encode(`data: ${JSON.stringify(session)}\n\n`));
 
       // 4. Start heartbeat to keep Render connection alive

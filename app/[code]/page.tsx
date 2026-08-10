@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { joinSession } from '../../lib/session';
+import { normalizeUsername } from '../../lib/validation';
 import { Session } from '../../lib/types';
 import Home from '../components/Home';
 
-export default function SessionCodePage({ params }: { params: { code: string } }) {
+export default function SessionCodePage({ params }: { params: Promise<{ code: string }> }) {
+  const { code } = use(params);
   const router = useRouter();
   const [sessionData, setSessionData] = useState<Session | null>(null);
   const [username, setUsername] = useState('');
@@ -14,17 +16,17 @@ export default function SessionCodePage({ params }: { params: { code: string } }
   const [needsUsername, setNeedsUsername] = useState(false);
   
   useEffect(() => {
-    const { code } = params;
-    
     if (!code || !/^[A-Z]{4}$/.test(code)) {
       router.replace('/');
       return;
     }
 
     const tryJoinSession = async () => {
-      // Check if we have a stored username
-      const storedUsername = localStorage.getItem('frameRateUsername');
-      
+      // Check if we have a stored username (normalize in case it predates
+      // the lowercase-username rule — the server stores normalized names)
+      const rawStoredUsername = localStorage.getItem('frameRateUsername');
+      const storedUsername = rawStoredUsername ? normalizeUsername(rawStoredUsername) : null;
+
       if (storedUsername) {
         try {
           const response = await joinSession(code, storedUsername);
@@ -45,7 +47,7 @@ export default function SessionCodePage({ params }: { params: { code: string } }
     };
 
     tryJoinSession();
-  }, [params, router]);
+  }, [code, router]);
 
   if (isLoading) {
     return (
@@ -62,10 +64,10 @@ export default function SessionCodePage({ params }: { params: { code: string } }
     // Render the main app with session data
     return (
       <div className="session-wrapper">
-        <Home 
-          initialSessionData={sessionData} 
+        <Home
+          initialSessionData={sessionData}
           initialUsername={username}
-          initialSessionCode={params.code}
+          initialSessionCode={code}
         />
       </div>
     );

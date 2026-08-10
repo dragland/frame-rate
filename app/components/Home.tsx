@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { searchMovies, Movie, getMovieDetails, formatRuntime } from '@/lib/tmdb';
 import { getLetterboxdRating } from '@/lib/letterboxd';
-import { createSession, joinSession, updateMovies, leaveSession, debounce } from '@/lib/session';
+import { createSession, joinSession, updateMovies, leaveSession, debounce, DebouncedFunction } from '@/lib/session';
 import { Session } from '@/lib/types';
 import { canStartVoting, startVoting } from '@/lib/voting';
 import VotingModal from './VotingModal';
@@ -51,6 +51,12 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
   const [sessionData, setSessionData] = useState<Session | null>(initialSessionData || null);
   const [sessionError, setSessionError] = useState<string>('');
   const [showVotingModal, setShowVotingModal] = useState(false);
+  const myMoviesRef = useRef(myMovies);
+  const hasPendingMovieSaveRef = useRef(false);
+
+  useEffect(() => {
+    myMoviesRef.current = myMovies;
+  }, [myMovies]);
 
   const handleStartMovieNight = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -205,23 +211,54 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
     setIsLoadingMore(false);
   };
 
-  const debouncedUpdateSession = useCallback(
-    debounce(async (movies: Movie[]) => {
-      if (sessionData && sessionMode !== 'solo') {
-        try {
-          await updateMovies(sessionData.code, username, movies);
-        } catch (error) {
+  const activeSessionCode = sessionData?.code;
+
+  const saveMoviesToSession = useCallback(async (movies: Movie[]) => {
+    if (activeSessionCode && sessionMode !== 'solo') {
+      try {
+        const response = await updateMovies(activeSessionCode, username, movies);
+        if (!response.success) {
+          console.warn('Failed to save nominations:', response.error);
         }
+      } catch (error) {
+        console.warn('Failed to save nominations:', error);
       }
-    }, 1000),
-    [sessionData, sessionMode, username]
-  );
+      hasPendingMovieSaveRef.current = false;
+    }
+  }, [activeSessionCode, sessionMode, username]);
+
+  // The debounced saver owns a timer, so an effect owns its lifecycle:
+  // recreated when the save callback changes, cancelled on cleanup
+  const debouncedUpdateSessionRef = useRef<DebouncedFunction<(movies: Movie[]) => void> | null>(null);
+
+  useEffect(() => {
+    const debounced = debounce(saveMoviesToSession, 1000);
+    debouncedUpdateSessionRef.current = debounced;
+    return () => {
+      debouncedUpdateSessionRef.current = null;
+      debounced.cancel();
+    };
+  }, [saveMoviesToSession]);
 
   const handleVoteClick = async () => {
     if (sessionData && sessionMode !== 'solo') {
       if (sessionData.votingPhase === 'ranking') {
         setIsLoading(true);
+        setSessionError('');
         try {
+          debouncedUpdateSessionRef.current?.cancel();
+          hasPendingMovieSaveRef.current = false;
+
+          const saveResponse = await updateMovies(sessionData.code, username, myMoviesRef.current);
+          if (!saveResponse.success) {
+            setSessionError(saveResponse.error || 'Failed to save rankings');
+            setIsLoading(false);
+            return;
+          }
+          if (saveResponse.session) {
+            setSessionData(saveResponse.session);
+          }
+
           const response = await startVoting(sessionData.code, username);
           if (response.success) {
             setSessionData(response.session);
@@ -243,29 +280,41 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
     setSessionData(updatedSession);
   };
 
-  const canVote = sessionData && sessionMode !== 'solo' && sessionData.participants.length >= 2 ? canStartVoting(sessionData) : false;
-  const isVotingLocked = sessionData?.votingPhase === 'locked' || sessionData?.votingPhase === 'vetoing' || sessionData?.votingPhase === 'results';
+  const canStartSessionVoting = sessionData && sessionMode !== 'solo' ? canStartVoting(sessionData) : false;
+  const canUseVotingButton = sessionData && sessionMode !== 'solo'
+    ? (sessionData.votingPhase === 'ranking' ? canStartSessionVoting : true)
+    : false;
+  const isVotingLocked = sessionData ? sessionData.votingPhase !== 'ranking' : false;
 
   const addToMyList = (movie: Movie) => {
+    if (isVotingLocked) return;
+
     if (!myMovies.find(m => m.id === movie.id)) {
       const updatedMovies = [...myMovies, movie];
+      hasPendingMovieSaveRef.current = sessionData !== null && sessionMode !== 'solo';
       setMyMovies(updatedMovies);
-      debouncedUpdateSession(updatedMovies);
+      debouncedUpdateSessionRef.current?.(updatedMovies);
     }
   };
 
   const removeFromMyList = (movieId: number) => {
+    if (isVotingLocked) return;
+
     const updatedMovies = myMovies.filter(m => m.id !== movieId);
+    hasPendingMovieSaveRef.current = sessionData !== null && sessionMode !== 'solo';
     setMyMovies(updatedMovies);
-    debouncedUpdateSession(updatedMovies);
+    debouncedUpdateSessionRef.current?.(updatedMovies);
   };
 
   const moveMovie = (fromIndex: number, toIndex: number) => {
+    if (isVotingLocked) return;
+
     const updatedMovies = [...myMovies];
     const [removed] = updatedMovies.splice(fromIndex, 1);
     updatedMovies.splice(toIndex, 0, removed);
+    hasPendingMovieSaveRef.current = sessionData !== null && sessionMode !== 'solo';
     setMyMovies(updatedMovies);
-    debouncedUpdateSession(updatedMovies);
+    debouncedUpdateSessionRef.current?.(updatedMovies);
   };
 
   const isInMyList = (movieId: number) => {
@@ -316,7 +365,11 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
 
         // Sync local movie list if it changed elsewhere
         const myParticipant = session.participants.find(p => p.username === username);
-        if (myParticipant && JSON.stringify(myParticipant.movies) !== JSON.stringify(myMovies)) {
+        if (
+          myParticipant &&
+          !hasPendingMovieSaveRef.current &&
+          JSON.stringify(myParticipant.movies) !== JSON.stringify(myMoviesRef.current)
+        ) {
           setMyMovies(myParticipant.movies);
         }
       } catch {
@@ -337,18 +390,25 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
     return () => eventSource.close();
   }, [sessionCode, sessionMode, username]);
 
+  const votingPhase = sessionData?.votingPhase;
+  const autoOpenedPhaseRef = useRef<string | null>(null);
+
+  // Auto-open the voting modal once per phase transition; the user can
+  // dismiss it and reopen via the sidebar button without it snapping back
   useEffect(() => {
-    if (!sessionData || sessionMode === 'solo') return;
-    
-    const votingPhases = ['vetoing', 'finalRanking'];
-    
-    if (votingPhases.includes(sessionData.votingPhase) && !showVotingModal) {
+    if (!votingPhase || sessionMode === 'solo') return;
+
+    const votingPhases = ['vetoing', 'finalRanking', 'results'];
+
+    if (votingPhases.includes(votingPhase) && autoOpenedPhaseRef.current !== votingPhase) {
+      autoOpenedPhaseRef.current = votingPhase;
       setShowVotingModal(true);
     }
-  }, [sessionData?.votingPhase, sessionMode, showVotingModal]);
+  }, [votingPhase, sessionMode]);
 
   const [isFromJoinUrl, setIsFromJoinUrl] = useState(false);
-  
+  const [joinNotice, setJoinNotice] = useState('');
+
   useEffect(() => {
     const joinParam = searchParams.get('join');
     if (joinParam && /^[A-Z]{4}$/.test(joinParam)) {
@@ -359,6 +419,11 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
           if (data.success) {
             setJoinCode(joinParam);
             setIsFromJoinUrl(true);
+            // Advisory only — the server is the authority on submit. New
+            // joins are rejected mid-vote, but existing players can rejoin.
+            if (data.session?.votingPhase && data.session.votingPhase !== 'ranking') {
+              setJoinNotice('Voting has already started — only players already in this session can rejoin.');
+            }
           } else {
             window.history.replaceState({}, '', '/');
           }
@@ -389,15 +454,25 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
                 placeholder="letterboxd username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                maxLength={32}
                 className="w-full p-4 bg-gray-900 border-2 border-gray-700 text-white rounded-lg focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400 font-mono text-center lowercase placeholder:text-gray-500 placeholder:normal-case"
                 aria-label="Letterboxd username"
                 required
               />
+              <p className="mt-2 text-xs text-gray-500 text-center">
+                lowercase letters, numbers, and underscores only
+              </p>
             </div>
 
             {sessionError && (
               <div className="p-3 bg-red-900 border border-red-700 rounded-lg text-red-300 text-sm">
                 {sessionError}
+              </div>
+            )}
+
+            {joinNotice && !sessionError && (
+              <div className="p-3 bg-yellow-900 border border-yellow-700 rounded-lg text-yellow-300 text-sm">
+                {joinNotice}
               </div>
             )}
 
@@ -419,7 +494,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
                   type="text"
                   placeholder="Enter 4-letter code"
                   value={joinCode}
-                  onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                  onChange={(e) => setJoinCode(e.target.value.toUpperCase().replace(/[^A-Z]/g, ''))}
                   maxLength={4}
                   className="w-full p-3 border border-gray-700 bg-gray-900 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-center font-mono text-lg tracking-wider"
                   aria-label="Session code to join"
@@ -533,6 +608,19 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
         </div>
 
         <div className="flex-1 p-4 sm:p-6 md:p-8 md:pr-4 overflow-y-auto relative">
+          {sessionError && (
+            <div className="mb-4 p-3 bg-red-900 border border-red-700 rounded-lg text-red-300 text-sm flex items-center justify-between">
+              <span>{sessionError}</span>
+              <button
+                onClick={() => setSessionError('')}
+                className="ml-3 text-red-400 hover:text-red-200"
+                aria-label="Dismiss error"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
           {isLoading && (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
@@ -556,6 +644,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
                 isInList={isInMyList(movie.id)}
                 isExpanded={expandedDescriptions.has(movie.id)}
                 onToggleDescription={() => toggleDescription(movie.id)}
+                disabled={isVotingLocked}
               />
             ))}
             
@@ -710,23 +799,25 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
               </div>
             )}
             
-            {sessionData && sessionMode !== 'solo' && sessionData.participants.length >= 2 && (
+            {sessionData && sessionMode !== 'solo' && (sessionData.participants.length >= 2 || sessionData.votingPhase !== 'ranking') && (
               <div>
-                <button 
+                {sessionError && (
+                  <p className="text-red-400 text-sm mb-2 text-center">{sessionError}</p>
+                )}
+                <button
                   onClick={handleVoteClick}
-                  disabled={!canVote}
+                  disabled={!canUseVotingButton}
                   className={`w-full p-4 rounded-lg font-semibold transition-colors ${
-                    canVote
+                    canUseVotingButton
                       ? (sessionData?.votingPhase === 'ranking' ? 'bg-blue-500 hover:bg-blue-600 text-white' : 'bg-green-500 hover:bg-green-600 text-white')
                       : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                   }`}
                 >
-                  {sessionData?.votingPhase === 'ranking' && canVote && '🔒 Lock Votes'}
-                  {sessionData?.votingPhase === 'locked' && '🔒 Votes Locked'}
+                  {sessionData?.votingPhase === 'ranking' && canUseVotingButton && '🔒 Lock Votes'}
                   {sessionData?.votingPhase === 'vetoing' && '🔒 Join Voting'}
                   {sessionData?.votingPhase === 'finalRanking' && '🔒 Final Rankings'}
                   {sessionData?.votingPhase === 'results' && '🏆 See Results'}
-                  {sessionData?.votingPhase === 'ranking' && !canVote && (
+                  {sessionData?.votingPhase === 'ranking' && !canUseVotingButton && (
                     myMovies.length < 2 ? 'Need 2 nominations' : 'Waiting for everyone\'s top 2'
                   )}
                 </button>

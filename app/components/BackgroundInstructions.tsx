@@ -31,7 +31,7 @@ export default function BackgroundInstructions({
             </li>
             
             <li className="flex items-center justify-center">
-              <span>Lock in everyone's top 2 picks</span>
+              <span>Lock in everyone&apos;s top 2 picks</span>
             </li>
             
             <li className="flex items-center justify-center">

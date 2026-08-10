@@ -44,7 +44,6 @@ const createTestSession = (code: string = 'TEST'): Session => ({
     },
   ],
   createdAt: new Date('2024-01-01'),
-  expiresAt: new Date('2024-01-02'),
   isVotingOpen: false,
   maxParticipants: 8,
   votingPhase: 'ranking',
@@ -189,13 +188,13 @@ describe('redis.ts - Memory Fallback Mode', () => {
 
       const updated = await atomicSessionUpdate('PRES', 3600, (s) => ({
         ...s,
-        votingPhase: 'locked' as const,
+        votingPhase: 'vetoing' as const,
       }));
 
       expect(updated).not.toBeNull();
       expect(updated?.code).toBe('PRES');
       expect(updated?.host).toBe('alice');
-      expect(updated?.votingPhase).toBe('locked');
+      expect(updated?.votingPhase).toBe('vetoing');
       expect(updated?.participants).toHaveLength(1);
     });
 
@@ -231,12 +230,23 @@ describe('redis.ts - Memory Fallback Mode', () => {
         ...s,
         participants: s.participants.map((p) =>
           p.username === 'bob'
-            ? { ...p, vetoedMovieId: 1 }
+            ? { ...p, vetoedNominationId: '1-alice' }
             : p
         ),
       }));
 
-      expect(updated2?.participants.find((p) => p.username === 'bob')?.vetoedMovieId).toBe(1);
+      expect(updated2?.participants.find((p) => p.username === 'bob')?.vetoedNominationId).toBe('1-alice');
+    });
+
+    it('should delete the session when the modifier returns delete', async () => {
+      const session = createTestSession('DEL1');
+      await atomicSessionCreate('DEL1', session, 3600);
+
+      const result = await atomicSessionUpdate('DEL1', 3600, () => 'delete' as const);
+      expect(result).toBe('deleted');
+
+      const followUp = await atomicSessionUpdate('DEL1', 3600, (s) => s);
+      expect(followUp).toBeNull();
     });
   });
 
@@ -287,7 +297,7 @@ describe('redis.ts - Memory Fallback Mode', () => {
           },
         ],
         joinedAt: new Date('2024-01-01'),
-        vetoedMovieId: 50,
+        vetoedNominationId: '50-alice',
       });
 
       const emitter = getSessionEmitter();
@@ -301,7 +311,7 @@ describe('redis.ts - Memory Fallback Mode', () => {
 
       expect(parsed.participants).toHaveLength(2);
       expect(parsed.participants[1].username).toBe('bob');
-      expect(parsed.participants[1].vetoedMovieId).toBe(50);
+      expect(parsed.participants[1].vetoedNominationId).toBe('50-alice');
       expect(parsed.participants[1].movies[0].id).toBe(100);
     });
   });
@@ -386,7 +396,6 @@ describe('redis.ts - Memory Fallback Mode', () => {
         host: 'alice',
         participants: [],
         createdAt: new Date(),
-        expiresAt: new Date(),
         isVotingOpen: false,
         maxParticipants: 8,
         votingPhase: 'ranking',

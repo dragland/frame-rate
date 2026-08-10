@@ -3,6 +3,7 @@ import getRedisClient, { atomicSessionUpdate, publishSessionUpdate } from '@/lib
 import { Session, JoinSessionRequest, SessionResponse } from '../../../../lib/types';
 import { validateLetterboxdProfile } from '../../../../lib/letterboxd-server';
 import { SESSION_CONFIG } from '../../../../lib/constants';
+import { isValidSessionCode, isValidUsername, normalizeSessionCode, normalizeUsername } from '../../../../lib/validation';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,8 +16,15 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    const sessionCode = code.trim().toUpperCase();
-    const trimmedUsername = username.trim();
+    if (!isValidSessionCode(code) || !isValidUsername(username)) {
+      return NextResponse.json<SessionResponse>({
+        success: false,
+        error: 'Invalid session code or username'
+      }, { status: 400 });
+    }
+
+    const sessionCode = normalizeSessionCode(code);
+    const trimmedUsername = normalizeUsername(username);
 
     // First check: Is user already in session? (read-only, no race condition concern)
     const redis = getRedisClient();
@@ -32,7 +40,9 @@ export async function POST(request: NextRequest) {
     const existingSession: Session = JSON.parse(sessionData);
 
     // Check if username already exists (allow rejoining)
-    const existingParticipant = existingSession.participants.find(p => p.username === trimmedUsername);
+    const existingParticipant = existingSession.participants.find(
+      p => p.username === trimmedUsername
+    );
 
     if (existingParticipant) {
       // User is rejoining - just return success with existing session
@@ -50,6 +60,13 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
+    if (existingSession.votingPhase !== 'ranking') {
+      return NextResponse.json<SessionResponse>({
+        success: false,
+        error: 'Session has already started'
+      }, { status: 400 });
+    }
+
     // Validate Letterboxd profile BEFORE atomic transaction (external API call)
     const profile = await validateLetterboxdProfile(trimmedUsername);
 
@@ -61,13 +78,10 @@ export async function POST(request: NextRequest) {
       sessionCode,
       SESSION_CONFIG.TTL_SECONDS,
       (session: Session) => {
-        // Migration: Add votingPhase if missing (for backward compatibility)
-        if (!session.votingPhase) {
-          session.votingPhase = 'ranking';
-        }
-
         // Re-check if user joined while we were validating Letterboxd
-        const alreadyJoined = session.participants.find(p => p.username === trimmedUsername);
+        const alreadyJoined = session.participants.find(
+          p => p.username === trimmedUsername
+        );
         if (alreadyJoined) {
           // Return current session as-is (they rejoined via another request)
           return session;
@@ -76,6 +90,11 @@ export async function POST(request: NextRequest) {
         // Re-check if session became full while we were validating
         if (session.participants.length >= session.maxParticipants) {
           validationError = 'Session is full';
+          return null;
+        }
+
+        if (session.votingPhase !== 'ranking') {
+          validationError = 'Session has already started';
           return null;
         }
 

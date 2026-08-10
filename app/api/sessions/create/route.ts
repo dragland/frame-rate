@@ -3,6 +3,7 @@ import { atomicSessionCreate, publishSessionUpdate } from '@/lib/redis';
 import { Session, CreateSessionRequest, SessionResponse } from '../../../../lib/types';
 import { validateLetterboxdProfile } from '../../../../lib/letterboxd-server';
 import { SESSION_CONFIG } from '../../../../lib/constants';
+import { isValidUsername, normalizeUsername } from '../../../../lib/validation';
 
 const generateSessionCode = (): string => {
   let result = '';
@@ -23,7 +24,14 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    const trimmedUsername = username.trim();
+    if (!isValidUsername(username)) {
+      return NextResponse.json<SessionResponse>({
+        success: false,
+        error: 'Username can only contain lowercase letters, numbers, and underscores'
+      }, { status: 400 });
+    }
+
+    const trimmedUsername = normalizeUsername(username);
 
     // Validate Letterboxd profile first (before code generation loop)
     const profile = await validateLetterboxdProfile(trimmedUsername);
@@ -46,7 +54,6 @@ export async function POST(request: NextRequest) {
           letterboxdExists: profile.exists,
         }],
         createdAt: now,
-        expiresAt: new Date(now.getTime() + SESSION_CONFIG.TTL_MS),
         isVotingOpen: false,
         maxParticipants: SESSION_CONFIG.MAX_PARTICIPANTS,
         votingPhase: 'ranking',

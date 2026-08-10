@@ -63,6 +63,7 @@ app/
 lib/
 ├── voting.ts          # Ranked choice voting algo
 ├── session.ts         # Session utilities
+├── validation.ts      # Input validation (codes/usernames/movies)
 ├── tmdb.ts            # Movie database integration
 └── redis.ts           # Storage (Redis/in-memory)
 ```

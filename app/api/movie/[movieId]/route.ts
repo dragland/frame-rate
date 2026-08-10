@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import getRedisClient from '@/lib/redis';
 import { API_CONFIG, CACHE_CONFIG } from '@/lib/constants';
+import { isPositiveInteger } from '@/lib/validation';
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
 
@@ -20,16 +21,21 @@ interface TMDBMovieDetails {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { movieId: string } }
+  { params }: { params: Promise<{ movieId: string }> }
 ) {
-  const { movieId } = params;
+  const { movieId } = await params;
+  const parsedMovieId = Number.parseInt(movieId, 10);
+
+  if (!isPositiveInteger(parsedMovieId)) {
+    return NextResponse.json({ error: 'movieId must be a positive integer' }, { status: 400 });
+  }
 
   if (!TMDB_API_KEY) {
     return NextResponse.json({ error: 'TMDB API key not configured' }, { status: 500 });
   }
 
   const redis = getRedisClient();
-  const cacheKey = `tmdb:movie:${movieId}`;
+  const cacheKey = `tmdb:movie:${parsedMovieId}`;
 
   try {
     // Check cache first
@@ -39,7 +45,7 @@ export async function GET(
     }
 
     const response = await fetch(
-      `${API_CONFIG.TMDB_BASE_URL}/movie/${movieId}?api_key=${TMDB_API_KEY}&append_to_response=credits`
+      `${API_CONFIG.TMDB_BASE_URL}/movie/${parsedMovieId}?api_key=${TMDB_API_KEY}&append_to_response=credits`
     );
 
     if (!response.ok) {

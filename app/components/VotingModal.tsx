@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Session, VotingPhase } from '../../lib/types';
+import React, { useRef, useState } from 'react';
+import { Session } from '../../lib/types';
 import { Movie, getImageUrl, formatRuntime } from '../../lib/tmdb';
-import { getAllMovies, getVetoedMovies, getRemainingMovies, getAllMovieNominations, getRemainingNominations, getVetoedNominations, startVoting, vetoMovie, vetoNomination, updateFinalMovies } from '../../lib/voting';
+import { getAllMovieNominations, getRemainingMovies, getRemainingNominations, vetoNomination, updateFinalMovies } from '../../lib/voting';
 import ProfilePicture from './ProfilePicture';
 import Image from 'next/image';
 
@@ -19,71 +19,49 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
   const [error, setError] = useState('');
   const [finalMovies, setFinalMovies] = useState<Movie[]>([]);
   const [pendingVeto, setPendingVeto] = useState<{ nominationId: string; title: string } | null>(null);
-  
-  const allMovies = getAllMovies(session);
-  const vetoedMovies = getVetoedMovies(session);
+  const vetoInFlightRef = useRef(false);
+
+
   const remainingMovies = getRemainingMovies(session);
   const allNominations = getAllMovieNominations(session);
   const remainingNominations = getRemainingNominations(session);
-  const vetoedNominations = getVetoedNominations(session);
   const currentUser = session.participants.find(p => p.username === username);
   const hasUserVetoed = currentUser?.hasVoted || false;
-  const userVetoedMovie = currentUser?.vetoedMovieId;
+  const userVetoedNomination = currentUser?.vetoedNominationId
+    ? allNominations.find(nomination => nomination.nominationId === currentUser.vetoedNominationId)
+    : undefined;
   const hasUserFinalRanked = currentUser?.finalMovies && currentUser.finalMovies.length > 0;
 
-  // Initialize final movies if not already set
-  React.useEffect(() => {
-    if (session.votingPhase === 'finalRanking' && finalMovies.length === 0 && remainingMovies.length > 0) {
-      // Initialize with remaining movies in original order for this user
-      const userOriginalMovies = currentUser?.movies || [];
-      const orderedRemaining = userOriginalMovies.filter(movie => 
-        remainingMovies.some(rm => rm.id === movie.id)
-      );
-      // Add any remaining movies that weren't in user's original list
-      const missingMovies = remainingMovies.filter(movie => 
-        !orderedRemaining.some(om => om.id === movie.id)
-      );
-      setFinalMovies([...orderedRemaining, ...missingMovies]);
-    }
-  }, [session.votingPhase, remainingMovies, currentUser?.movies, finalMovies.length]);
+  // The displayed ranking is derived, not synced: the user's drag order
+  // (finalMovies) is kept where it still applies, and the rest of the pool is
+  // appended in the user's original nomination order. This self-heals when the
+  // pool changes underneath us (e.g. a participant left mid-phase).
+  const orderedFinalMovies = React.useMemo(() => {
+    if (session.votingPhase !== 'finalRanking') return [];
 
-  const handleStartVoting = async () => {
-    setIsLoading(true);
-    setError('');
-    
-    try {
-      const response = await startVoting(session.code, username);
-      if (response.success) {
-        onSessionUpdate(response.session);
-      } else {
-        setError(response.error || 'Failed to start voting');
-      }
-    } catch (err) {
-      setError('Failed to start voting');
-    }
-    
-    setIsLoading(false);
-  };
+    const remainingIds = new Set(remainingMovies.map(movie => movie.id));
+    const kept = finalMovies.filter(movie => remainingIds.has(movie.id));
+    const keptIds = new Set(kept.map(movie => movie.id));
+    const userOriginalMovies = currentUser?.movies || [];
 
-  const handleVetoMovie = async (movieId: number) => {
-    setIsLoading(true);
-    setError('');
-    
-    try {
-      const response = await vetoMovie(session.code, username, movieId);
-      if (response.success) {
-        onSessionUpdate(response.session);
-      } else {
-        setError(response.error || 'Failed to veto movie');
-      }
-    } catch (err) {
-      setError('Failed to veto movie');
-    }
-    
-    setIsLoading(false);
-  };
+    return [
+      ...kept,
+      ...userOriginalMovies.filter(movie => remainingIds.has(movie.id) && !keptIds.has(movie.id)),
+      ...remainingMovies.filter(movie =>
+        !keptIds.has(movie.id) && !userOriginalMovies.some(om => om.id === movie.id)
+      ),
+    ];
+  }, [session.votingPhase, remainingMovies, finalMovies, currentUser?.movies]);
+
+  // A pending veto dialog goes stale if someone else vetoed that nomination first
+  const activePendingVeto = pendingVeto &&
+    remainingNominations.some(n => n.nominationId === pendingVeto.nominationId)
+    ? pendingVeto
+    : null;
 
   const handleVetoNomination = async (nominationId: string) => {
+    if (vetoInFlightRef.current || hasUserVetoed) return;
+    vetoInFlightRef.current = true;
     setIsLoading(true);
     setError('');
     setPendingVeto(null);
@@ -99,6 +77,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
       setError('Failed to veto nomination');
     }
 
+    vetoInFlightRef.current = false;
     setIsLoading(false);
   };
 
@@ -115,7 +94,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
     setError('');
     
     try {
-      const response = await updateFinalMovies(session.code, username, finalMovies);
+      const response = await updateFinalMovies(session.code, username, orderedFinalMovies);
       if (response.success) {
         onSessionUpdate(response.session);
       } else {
@@ -139,31 +118,15 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
   const handleDrop = (e: React.DragEvent, targetIndex: number) => {
     e.preventDefault();
     const draggedMovieId = parseInt(e.dataTransfer.getData('text/plain'));
-    const draggedIndex = finalMovies.findIndex(m => m.id === draggedMovieId);
-    
+    const draggedIndex = orderedFinalMovies.findIndex(m => m.id === draggedMovieId);
+
     if (draggedIndex === -1) return;
-    
-    const newMovies = [...finalMovies];
+
+    const newMovies = [...orderedFinalMovies];
     const [removed] = newMovies.splice(draggedIndex, 1);
     newMovies.splice(targetIndex, 0, removed);
     setFinalMovies(newMovies);
   };
-
-  const renderLockedPhase = () => (
-    <div className="text-center">
-      <div className="text-6xl mb-4">🔒</div>
-              <h3 className="text-xl font-semibold mb-4 text-white">Rankings Locked!</h3>
-              <p className="text-gray-400 mb-6">
-          All movie rankings have been locked. Now it's time to eliminate movies.
-        </p>
-      <p className="text-sm text-orange-600 dark:text-orange-400 mb-6">
-        Each person gets to veto one movie. Choose wisely!
-      </p>
-      <div className="text-sm text-gray-500 dark:text-gray-400">
-        Waiting for the veto phase to begin...
-      </div>
-    </div>
-  );
 
   const renderVetoingPhase = () => (
     <div>
@@ -205,19 +168,19 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
 
       {hasUserVetoed ? (
         <div className="text-center py-8">
-          <div className="text-green-600 dark:text-green-400">✓ Vetoed "{vetoedMovies.find(m => m.id === userVetoedMovie)?.title || 'Unknown'}"</div>
+          <div className="text-green-600 dark:text-green-400">✓ Vetoed &quot;{userVetoedNomination?.title || 'Unknown'}&quot;</div>
         </div>
       ) : (
         <div>
           {/* Veto confirmation dialog */}
-          {pendingVeto && (
+          {activePendingVeto && (
             <div className="mb-4 p-4 bg-red-900/50 border border-red-700 rounded-lg">
               <p className="text-white text-sm mb-3">
-                Eliminate <span className="font-semibold">"{pendingVeto.title}"</span> from the pool? This cannot be undone.
+                Eliminate <span className="font-semibold">&quot;{activePendingVeto.title}&quot;</span> from the pool? This cannot be undone.
               </p>
               <div className="flex space-x-2">
                 <button
-                  onClick={() => handleVetoNomination(pendingVeto.nominationId)}
+                  onClick={() => handleVetoNomination(activePendingVeto.nominationId)}
                   disabled={isLoading}
                   className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 text-white py-2 px-3 rounded font-semibold text-sm transition-colors"
                 >
@@ -238,7 +201,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
             {remainingNominations.map((nomination) => (
               <div
                 key={nomination.nominationId}
-                className={`flex items-center space-x-3 p-3 bg-gray-800 rounded-lg hover:bg-gray-700 cursor-pointer transition-all ${pendingVeto?.nominationId === nomination.nominationId ? 'ring-2 ring-red-500' : ''}`}
+                className={`flex items-center space-x-3 p-3 bg-gray-800 rounded-lg hover:bg-gray-700 cursor-pointer transition-all ${activePendingVeto?.nominationId === nomination.nominationId ? 'ring-2 ring-red-500' : ''}`}
                 onClick={() => handleVetoClick(nomination.nominationId, nomination.title)}
               >
                 <Image
@@ -333,7 +296,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
       ) : (
         <div>
           <div className="space-y-2 max-h-96 overflow-y-auto mb-4">
-            {finalMovies.map((movie, index) => {
+            {orderedFinalMovies.map((movie, index) => {
               const year = movie.release_date?.split('-')[0];
               return (
               <div
@@ -387,7 +350,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
           
           <button
             onClick={handleUpdateFinalMovies}
-            disabled={isLoading || finalMovies.length === 0}
+            disabled={isLoading || orderedFinalMovies.length === 0}
             className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white p-3 rounded-lg font-semibold transition-colors"
           >
             {isLoading ? '⏳ Locking...' : '🔒 Lock Final Votes'}
@@ -467,7 +430,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
                   <span className="font-medium">Round {round.round}:</span>
                   {round.eliminated && (
                     <span className="text-red-600 dark:text-red-400 ml-2">
-                      Eliminated "{round.eliminated.title}"
+                      Eliminated &quot;{round.eliminated.title}&quot;
                     </span>
                   )}
                 </div>
@@ -516,13 +479,9 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
           <li>3. Final rankings determine the winner</li>
         </ol>
       </div>
-      <button
-        onClick={handleStartVoting}
-        disabled={isLoading}
-        className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white p-4 rounded-lg font-semibold transition-colors"
-      >
-        {isLoading ? '⏳ Locking...' : '🔒 Lock Votes'}
-      </button>
+      <div className="text-sm text-gray-500 dark:text-gray-400">
+        Use the sidebar button to lock votes.
+      </div>
     </div>
   );
 
@@ -530,8 +489,6 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
     switch (session.votingPhase) {
       case 'ranking':
         return renderRankingPhase();
-      case 'locked':
-        return renderLockedPhase();
       case 'vetoing':
         return renderVetoingPhase();
       case 'finalRanking':

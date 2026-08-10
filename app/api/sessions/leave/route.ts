@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import getRedisClient, { atomicSessionUpdate, publishSessionUpdate } from '@/lib/redis';
+import { atomicSessionUpdate, publishSessionUpdate } from '@/lib/redis';
 import { Session, SessionResponse } from '../../../../lib/types';
 import { SESSION_CONFIG } from '../../../../lib/constants';
+import { advanceVotingPhaseIfComplete } from '../../../../lib/voting';
+import { isValidSessionCode, isValidUsername, normalizeSessionCode, normalizeUsername } from '../../../../lib/validation';
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,38 +16,55 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    const sessionCode = code.trim().toUpperCase();
-    const trimmedUsername = username.trim();
+    if (!isValidSessionCode(code) || !isValidUsername(username)) {
+      return NextResponse.json<SessionResponse>({
+        success: false,
+        error: 'Invalid session code or username'
+      }, { status: 400 });
+    }
 
-    // Track if session should be deleted
-    let shouldDelete = false;
+    const sessionCode = normalizeSessionCode(code);
+    const trimmedUsername = normalizeUsername(username);
 
     const updatedSession = await atomicSessionUpdate(
       sessionCode,
       SESSION_CONFIG.TTL_SECONDS,
-      (session: Session) => {
-        // Remove participant from session
-        session.participants = session.participants.filter(p => p.username !== trimmedUsername);
+      (session: Session): Session | null | 'delete' => {
+        const originalLength = session.participants.length;
 
-        // If no participants left, mark for deletion
-        if (session.participants.length === 0) {
-          shouldDelete = true;
-          return null; // Don't save, we'll delete instead
+        // Remove participant from session
+        session.participants = session.participants.filter(
+          p => p.username !== trimmedUsername
+        );
+
+        if (session.participants.length === originalLength) {
+          return null; // Not a member — skip the write and SSE broadcast
         }
+
+        // If no participants left, delete the session (inside the optimistic
+        // lock, so a concurrent join retries instead of being wiped out)
+        if (session.participants.length === 0) {
+          return 'delete';
+        }
+
+        if (!session.participants.some(p => p.username === session.host)) {
+          session.host = session.participants[0].username;
+        }
+
+        // A departure can change the remaining pool and/or make the departing
+        // user the last blocker — re-check the phase transition.
+        advanceVotingPhaseIfComplete(session);
 
         return session;
       }
     );
 
-    // Handle deletion case
-    if (shouldDelete) {
-      const redis = getRedisClient();
-      await redis.del(`session:${sessionCode}`);
-    } else if (updatedSession) {
+    if (updatedSession && updatedSession !== 'deleted') {
       // Publish update to SSE clients
       await publishSessionUpdate(sessionCode, updatedSession);
     }
-    // If updatedSession is null and !shouldDelete, session didn't exist - that's fine
+    // null means the session didn't exist or the user wasn't a member - that's fine;
+    // 'deleted' means the last participant left and the session was removed
 
     return NextResponse.json<SessionResponse>({
       success: true

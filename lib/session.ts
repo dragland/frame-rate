@@ -41,15 +41,29 @@ export const leaveSession = async (code: string, username: string): Promise<Sess
   return response.json();
 };
 
+export type DebouncedFunction<T extends (...args: any[]) => void> =
+  ((...args: Parameters<T>) => void) & { cancel: () => void };
+
 // Utility to debounce movie updates
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const debounce = <T extends (...args: any[]) => void>(
   func: T,
   delay: number
-): ((...args: Parameters<T>) => void) => {
-  let timeoutId: NodeJS.Timeout;
-  return (...args: Parameters<T>) => {
-    clearTimeout(timeoutId);
+): DebouncedFunction<T> => {
+  let timeoutId: NodeJS.Timeout | undefined;
+
+  const debounced = ((...args: Parameters<T>) => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
     timeoutId = setTimeout(() => func(...args), delay);
+  }) as DebouncedFunction<T>;
+
+  debounced.cancel = () => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      timeoutId = undefined;
+    }
   };
+
+  return debounced;
 }; 

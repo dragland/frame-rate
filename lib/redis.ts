@@ -247,15 +247,29 @@ export const getRawRedisClient = (): Redis | null => {
  *
  * @param sessionCode - The session code (without 'session:' prefix)
  * @param ttl - TTL in seconds for the session
- * @param modifier - Function that takes current session and returns modified session (or null to abort)
- * @returns The modified session, or null if modifier returned null or session doesn't exist
+ * @param modifier - Function that takes current session and returns the modified
+ *   session, null to abort, or 'delete' to atomically delete the session (the
+ *   DEL runs inside the same optimistic lock, so a concurrent write retries
+ *   instead of being clobbered)
+ * @returns The modified session, 'deleted' if the modifier requested deletion,
+ *   or null if modifier returned null or session doesn't exist
  * @throws Error if max retries exceeded (concurrent modification conflict)
  */
-export const atomicSessionUpdate = async (
+export function atomicSessionUpdate(
   sessionCode: string,
   ttl: number,
   modifier: (session: Session) => Session | null
-): Promise<Session | null> => {
+): Promise<Session | null>;
+export function atomicSessionUpdate(
+  sessionCode: string,
+  ttl: number,
+  modifier: (session: Session) => Session | null | 'delete'
+): Promise<Session | null | 'deleted'>;
+export async function atomicSessionUpdate(
+  sessionCode: string,
+  ttl: number,
+  modifier: (session: Session) => Session | null | 'delete'
+): Promise<Session | null | 'deleted'> {
   const key = `session:${sessionCode}`;
   const rawRedis = getRawRedisClient();
 
@@ -271,7 +285,16 @@ export const atomicSessionUpdate = async (
       }
 
       const session: Session = JSON.parse(data);
-      const modified = modifier(session);
+
+      let modified: Session | null | 'delete';
+      try {
+        modified = modifier(session);
+      } catch (error) {
+        // Release the WATCH so a dangling watch can't abort the next
+        // unrelated transaction on this shared connection
+        await rawRedis.unwatch().catch(() => {});
+        throw error;
+      }
 
       if (modified === null) {
         await rawRedis.unwatch();
@@ -279,12 +302,16 @@ export const atomicSessionUpdate = async (
       }
 
       const multi = rawRedis.multi();
-      multi.setex(key, ttl, JSON.stringify(modified));
+      if (modified === 'delete') {
+        multi.del(key);
+      } else {
+        multi.setex(key, ttl, JSON.stringify(modified));
+      }
       const result = await multi.exec();
 
       if (result !== null) {
         // Success - transaction committed
-        return modified;
+        return modified === 'delete' ? 'deleted' : modified;
       }
       // result === null means WATCH detected a change, retry
       console.log(`⚠️ Atomic update conflict on ${key}, retry ${attempt + 1}/${MAX_ATOMIC_RETRIES}`);
@@ -317,6 +344,11 @@ export const atomicSessionUpdate = async (
 
       if (modified === null) {
         return null;
+      }
+
+      if (modified === 'delete') {
+        memoryStore.delete(key);
+        return 'deleted';
       }
 
       memoryStore.set(key, JSON.stringify(modified));

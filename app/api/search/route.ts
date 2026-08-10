@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isPositiveInteger } from '@/lib/validation';
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
@@ -6,10 +7,14 @@ const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('q');
-  const page = searchParams.get('page') || '1';
+  const page = Number.parseInt(searchParams.get('page') || '1', 10);
 
   if (!query) {
     return NextResponse.json({ error: 'Query parameter is required' }, { status: 400 });
+  }
+
+  if (!isPositiveInteger(page)) {
+    return NextResponse.json({ error: 'Page parameter must be a positive integer' }, { status: 400 });
   }
 
   if (!TMDB_API_KEY) {

@@ -1,12 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
+  advanceVotingPhaseIfComplete,
   canStartVoting,
+  createNominationId,
   getAllMovies,
   getAllMovieNominations,
-  getVetoedMovies,
   getVetoedNominations,
   getRemainingNominations,
   getRemainingMovies,
+  hasDuplicateMovieIds,
+  isExactMovieSet,
   calculateRankedChoiceWinner,
 } from './voting';
 import { Session, SessionParticipant } from './types';
@@ -47,7 +50,6 @@ const createSession = (
   host: participants[0]?.username || 'host',
   participants,
   createdAt: new Date('2024-01-01'),
-  expiresAt: new Date('2024-01-02'),
   isVotingOpen: false,
   maxParticipants: 8,
   votingPhase: 'ranking',
@@ -104,6 +106,15 @@ describe('voting.ts', () => {
 
       expect(canStartVoting(session)).toBe(true);
     });
+
+    it('should return false when a participant has duplicate movies in their top 2', () => {
+      const session = createSession([
+        createParticipant('alice', [createMovie(1, 'Movie 1'), createMovie(1, 'Movie 1')]),
+        createParticipant('bob', [createMovie(3, 'Movie 3'), createMovie(4, 'Movie 4')]),
+      ]);
+
+      expect(canStartVoting(session)).toBe(false);
+    });
   });
 
   describe('getAllMovies', () => {
@@ -159,6 +170,7 @@ describe('voting.ts', () => {
       const nominations = getAllMovieNominations(session);
       expect(nominations).toHaveLength(4);
       expect(nominations[0].nominatedBy).toBe('alice');
+      expect(nominations[0].nominationId).toBe('1-alice');
       expect(nominations[2].nominatedBy).toBe('bob');
     });
 
@@ -173,33 +185,6 @@ describe('voting.ts', () => {
       const movie1Nominations = nominations.filter(n => n.id === 1);
       expect(movie1Nominations).toHaveLength(2);
       expect(movie1Nominations.map(n => n.nominatedBy)).toEqual(['alice', 'bob']);
-    });
-  });
-
-  describe('getVetoedMovies', () => {
-    it('should return movies that have been vetoed', () => {
-      const session = createSession([
-        createParticipant('alice', [createMovie(1, 'Movie 1'), createMovie(2, 'Movie 2')], {
-          vetoedMovieId: 3,
-        }),
-        createParticipant('bob', [createMovie(3, 'Movie 3'), createMovie(4, 'Movie 4')], {
-          vetoedMovieId: 1,
-        }),
-      ]);
-
-      const vetoedMovies = getVetoedMovies(session);
-      expect(vetoedMovies).toHaveLength(2);
-      expect(vetoedMovies.map(m => m.id)).toEqual([1, 3]);
-    });
-
-    it('should return empty array when no vetoes', () => {
-      const session = createSession([
-        createParticipant('alice', [createMovie(1, 'Movie 1'), createMovie(2, 'Movie 2')]),
-        createParticipant('bob', [createMovie(3, 'Movie 3'), createMovie(4, 'Movie 4')]),
-      ]);
-
-      const vetoedMovies = getVetoedMovies(session);
-      expect(vetoedMovies).toHaveLength(0);
     });
   });
 
@@ -253,13 +238,25 @@ describe('voting.ts', () => {
       expect(remaining[0].nominationId).toBe('1-alice');
       expect(remaining[1].nominationId).toBe('2-alice');
     });
+
+    it('should remove only the vetoed duplicate nomination', () => {
+      const session = createSession([
+        createParticipant('alice', [createMovie(1, 'Movie 1'), createMovie(2, 'Movie 2')], {
+          vetoedNominationId: '1-bob',
+        }),
+        createParticipant('bob', [createMovie(1, 'Movie 1'), createMovie(3, 'Movie 3')]),
+      ]);
+
+      const remaining = getRemainingNominations(session);
+      expect(remaining.map(n => n.nominationId)).toEqual(['1-alice', '2-alice', '3-bob']);
+    });
   });
 
   describe('getRemainingMovies', () => {
     it('should return movies that have not been vetoed', () => {
       const session = createSession([
         createParticipant('alice', [createMovie(1, 'Movie 1'), createMovie(2, 'Movie 2')], {
-          vetoedMovieId: 3,
+          vetoedNominationId: '3-bob',
         }),
         createParticipant('bob', [createMovie(3, 'Movie 3'), createMovie(4, 'Movie 4')]),
       ]);
@@ -277,6 +274,52 @@ describe('voting.ts', () => {
 
       const remaining = getRemainingMovies(session);
       expect(remaining).toHaveLength(4);
+    });
+
+    it('should keep a movie when only one duplicate nomination was vetoed', () => {
+      const session = createSession([
+        createParticipant('alice', [createMovie(1, 'Movie 1'), createMovie(2, 'Movie 2')], {
+          vetoedNominationId: '1-bob',
+        }),
+        createParticipant('bob', [createMovie(1, 'Movie 1'), createMovie(3, 'Movie 3')]),
+      ]);
+
+      const remaining = getRemainingMovies(session);
+      expect(remaining.map(m => m.id)).toEqual([1, 2, 3]);
+    });
+
+    it('should remove a movie only when all of its nominations are vetoed', () => {
+      const session = createSession([
+        createParticipant('alice', [createMovie(1, 'Movie 1'), createMovie(2, 'Movie 2')], {
+          vetoedNominationId: '1-bob',
+        }),
+        createParticipant('bob', [createMovie(1, 'Movie 1'), createMovie(3, 'Movie 3')], {
+          vetoedNominationId: '1-alice',
+        }),
+      ]);
+
+      const remaining = getRemainingMovies(session);
+      expect(remaining.map(m => m.id)).toEqual([2, 3]);
+    });
+  });
+
+  describe('ranking helpers', () => {
+    it('should detect duplicate movie IDs', () => {
+      expect(hasDuplicateMovieIds([createMovie(1, 'Movie 1'), createMovie(1, 'Movie 1')])).toBe(true);
+      expect(hasDuplicateMovieIds([createMovie(1, 'Movie 1'), createMovie(2, 'Movie 2')])).toBe(false);
+    });
+
+    it('should validate exact movie sets regardless of order', () => {
+      const expected = [createMovie(1, 'Movie 1'), createMovie(2, 'Movie 2')];
+
+      expect(isExactMovieSet([createMovie(2, 'Movie 2'), createMovie(1, 'Movie 1')], expected)).toBe(true);
+      expect(isExactMovieSet([createMovie(1, 'Movie 1')], expected)).toBe(false);
+      expect(isExactMovieSet([createMovie(1, 'Movie 1'), createMovie(1, 'Movie 1')], expected)).toBe(false);
+      expect(isExactMovieSet([createMovie(1, 'Movie 1'), createMovie(3, 'Movie 3')], expected)).toBe(false);
+    });
+
+    it('should create stable nomination IDs', () => {
+      expect(createNominationId(550, 'alice')).toBe('550-alice');
     });
   });
 
@@ -308,14 +351,16 @@ describe('voting.ts', () => {
       expect(results.rounds.length).toBeGreaterThan(1);
     });
 
-    it('should exclude vetoed movies from consideration', () => {
+    it('should exclude vetoed nominations from consideration', () => {
       const session = createSession(
         [
           createParticipant('alice', [createMovie(1, 'Movie 1'), createMovie(2, 'Movie 2')], {
-            vetoedMovieId: 2,
+            vetoedNominationId: '3-bob',
+            finalMovies: [createMovie(1, 'Movie 1'), createMovie(4, 'Movie 4')],
           }),
-          createParticipant('bob', [createMovie(2, 'Movie 2'), createMovie(3, 'Movie 3')], {
-            vetoedMovieId: 3,
+          createParticipant('bob', [createMovie(3, 'Movie 3'), createMovie(4, 'Movie 4')], {
+            vetoedNominationId: '2-alice',
+            finalMovies: [createMovie(1, 'Movie 1'), createMovie(4, 'Movie 4')],
           }),
         ],
         { votingPhase: 'results' }
@@ -323,7 +368,22 @@ describe('voting.ts', () => {
 
       const results = calculateRankedChoiceWinner(session);
       expect(results.winner.id).toBe(1);
-      expect([2, 3]).toContain(results.winner.id === 1 ? 2 : 1);
+    });
+
+    it('should calculate with nomination-level vetoes for duplicate nominations', () => {
+      const session = createSession([
+        createParticipant('alice', [createMovie(1, 'Movie 1'), createMovie(2, 'Movie 2')], {
+          vetoedNominationId: '1-bob',
+          finalMovies: [createMovie(1, 'Movie 1'), createMovie(2, 'Movie 2'), createMovie(3, 'Movie 3')],
+        }),
+        createParticipant('bob', [createMovie(1, 'Movie 1'), createMovie(3, 'Movie 3')], {
+          vetoedNominationId: '2-alice',
+          finalMovies: [createMovie(1, 'Movie 1'), createMovie(3, 'Movie 3')],
+        }),
+      ]);
+
+      const results = calculateRankedChoiceWinner(session);
+      expect(results.winner.id).toBe(1);
     });
 
     it('should use finalMovies when available', () => {
@@ -367,10 +427,10 @@ describe('voting.ts', () => {
     it('should handle single movie remaining', () => {
       const session = createSession([
         createParticipant('alice', [createMovie(1, 'Movie 1'), createMovie(2, 'Movie 2')], {
-          vetoedMovieId: 2,
+          vetoedNominationId: '2-bob',
         }),
         createParticipant('bob', [createMovie(1, 'Movie 1'), createMovie(2, 'Movie 2')], {
-          vetoedMovieId: 2,
+          vetoedNominationId: '2-alice',
         }),
       ]);
 
@@ -467,11 +527,11 @@ describe('voting.ts', () => {
         const session = createSession([
           createParticipant('alice', [createMovie(1, 'Movie 1'), createMovie(2, 'Movie 2')], {
             hasVoted: true,
-            vetoedMovieId: 3,
+            vetoedNominationId: '3-bob',
           }),
           createParticipant('bob', [createMovie(3, 'Movie 3'), createMovie(4, 'Movie 4')], {
             hasVoted: true,
-            vetoedMovieId: 1,
+            vetoedNominationId: '1-alice',
           }),
         ]);
 
@@ -484,11 +544,11 @@ describe('voting.ts', () => {
         const session = createSession([
           createParticipant('alice', [createMovie(1, 'Movie 1'), createMovie(2, 'Movie 2')], {
             hasVoted: true,
-            vetoedMovieId: 2,
+            vetoedNominationId: '2-bob',
           }),
           createParticipant('bob', [createMovie(1, 'Movie 1'), createMovie(2, 'Movie 2')], {
             hasVoted: true,
-            vetoedMovieId: 2,
+            vetoedNominationId: '2-alice',
           }),
         ]);
 
@@ -497,20 +557,23 @@ describe('voting.ts', () => {
         expect(remaining[0].id).toBe(1);
       });
 
-      it('should handle all movies being vetoed', () => {
+      it('should never empty the pool when each veto removes one nomination', () => {
+        // Each participant contributes 2 nominations and holds 1 veto,
+        // so the pool can never be drained to zero
         const session = createSession([
           createParticipant('alice', [createMovie(1, 'Movie 1'), createMovie(2, 'Movie 2')], {
             hasVoted: true,
-            vetoedMovieId: 1,
+            vetoedNominationId: '1-bob',
           }),
           createParticipant('bob', [createMovie(1, 'Movie 1'), createMovie(2, 'Movie 2')], {
             hasVoted: true,
-            vetoedMovieId: 2,
+            vetoedNominationId: '2-alice',
           }),
         ]);
 
-        const remaining = getRemainingMovies(session);
-        expect(remaining.length).toBe(0);
+        const remaining = getRemainingNominations(session);
+        expect(remaining.length).toBeGreaterThan(0);
+        expect(remaining.map(n => n.nominationId)).toEqual(['1-alice', '2-bob']);
       });
     });
 
@@ -542,6 +605,113 @@ describe('voting.ts', () => {
       });
     });
 
+    describe('advanceVotingPhaseIfComplete', () => {
+      it('does nothing while vetoes are outstanding', () => {
+        const session = createSession(
+          [
+            createParticipant('alice', [createMovie(1, 'Movie 1'), createMovie(2, 'Movie 2')], {
+              hasVoted: true,
+              vetoedNominationId: '3-bob',
+            }),
+            createParticipant('bob', [createMovie(3, 'Movie 3'), createMovie(4, 'Movie 4')]),
+          ],
+          { votingPhase: 'vetoing' }
+        );
+
+        advanceVotingPhaseIfComplete(session);
+        expect(session.votingPhase).toBe('vetoing');
+      });
+
+      it('advances vetoing to finalRanking when everyone has vetoed', () => {
+        const session = createSession(
+          [
+            createParticipant('alice', [createMovie(1, 'Movie 1'), createMovie(2, 'Movie 2')], {
+              hasVoted: true,
+              vetoedNominationId: '3-bob',
+              finalMovies: [createMovie(9, 'Stale')],
+            }),
+            createParticipant('bob', [createMovie(3, 'Movie 3'), createMovie(4, 'Movie 4')], {
+              hasVoted: true,
+              vetoedNominationId: '1-alice',
+            }),
+          ],
+          { votingPhase: 'vetoing' }
+        );
+
+        advanceVotingPhaseIfComplete(session);
+        expect(session.votingPhase).toBe('finalRanking');
+        // finalMovies are reset for the new phase
+        expect(session.participants.every(p => p.finalMovies === undefined)).toBe(true);
+      });
+
+      it('advances vetoing straight to results when one movie remains', () => {
+        const session = createSession(
+          [
+            createParticipant('alice', [createMovie(1, 'Movie 1'), createMovie(2, 'Movie 2')], {
+              hasVoted: true,
+              vetoedNominationId: '2-bob',
+            }),
+            createParticipant('bob', [createMovie(1, 'Movie 1'), createMovie(2, 'Movie 2')], {
+              hasVoted: true,
+              vetoedNominationId: '2-alice',
+            }),
+          ],
+          { votingPhase: 'vetoing' }
+        );
+
+        advanceVotingPhaseIfComplete(session);
+        expect(session.votingPhase).toBe('results');
+        expect(session.votingResults?.winner.id).toBe(1);
+      });
+
+      it('advances finalRanking to results when everyone has submitted', () => {
+        const remaining = [createMovie(2, 'Movie 2'), createMovie(4, 'Movie 4')];
+        const session = createSession(
+          [
+            createParticipant('alice', [createMovie(1, 'Movie 1'), createMovie(2, 'Movie 2')], {
+              hasVoted: true,
+              vetoedNominationId: '3-bob',
+              finalMovies: [...remaining],
+            }),
+            createParticipant('bob', [createMovie(3, 'Movie 3'), createMovie(4, 'Movie 4')], {
+              hasVoted: true,
+              vetoedNominationId: '1-alice',
+              finalMovies: [...remaining],
+            }),
+          ],
+          { votingPhase: 'finalRanking' }
+        );
+
+        advanceVotingPhaseIfComplete(session);
+        expect(session.votingPhase).toBe('results');
+        expect(session.votingResults?.winner.id).toBe(2);
+      });
+
+      it('clears stale finalMovies instead of deadlocking when the pool changed', () => {
+        // alice submitted a ranking for a pool that no longer matches
+        // (e.g. a participant left mid-finalRanking, changing the pool)
+        const session = createSession(
+          [
+            createParticipant('alice', [createMovie(1, 'Movie 1'), createMovie(2, 'Movie 2')], {
+              hasVoted: true,
+              vetoedNominationId: '3-bob',
+              finalMovies: [createMovie(2, 'Movie 2'), createMovie(4, 'Movie 4'), createMovie(5, 'Gone')],
+            }),
+            createParticipant('bob', [createMovie(3, 'Movie 3'), createMovie(4, 'Movie 4')], {
+              hasVoted: true,
+              vetoedNominationId: '1-alice',
+            }),
+          ],
+          { votingPhase: 'finalRanking' }
+        );
+
+        advanceVotingPhaseIfComplete(session);
+        // Phase stays finalRanking, but alice can now resubmit
+        expect(session.votingPhase).toBe('finalRanking');
+        expect(session.participants[0].finalMovies).toBeUndefined();
+      });
+    });
+
     describe('Full voting flow integration', () => {
       it('simulates complete ranking -> vetoing -> finalRanking -> results flow', () => {
         // Phase 1: ranking - verify can start
@@ -554,9 +724,9 @@ describe('voting.ts', () => {
 
         // Phase 2: vetoing - simulate vetoes
         session.participants[0].hasVoted = true;
-        session.participants[0].vetoedMovieId = 3;
+        session.participants[0].vetoedNominationId = '3-bob';
         session.participants[1].hasVoted = true;
-        session.participants[1].vetoedMovieId = 1;
+        session.participants[1].vetoedNominationId = '1-alice';
 
         const remaining = getRemainingMovies(session);
         expect(remaining).toHaveLength(2);
@@ -577,11 +747,11 @@ describe('voting.ts', () => {
           createParticipant('bob', [createMovie(1, 'Movie 1'), createMovie(2, 'Movie 2')]),
         ]);
 
-        // Both veto movie 2
+        // Both nominations of movie 2 get vetoed
         session.participants[0].hasVoted = true;
-        session.participants[0].vetoedMovieId = 2;
+        session.participants[0].vetoedNominationId = '2-bob';
         session.participants[1].hasVoted = true;
-        session.participants[1].vetoedMovieId = 2;
+        session.participants[1].vetoedNominationId = '2-alice';
 
         const remaining = getRemainingMovies(session);
         expect(remaining).toHaveLength(1);
