@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
 const emptyResponse = (status: number) =>
-  NextResponse.json<LetterboxdWatchlist>({ username: '', slugs: [], truncated: false }, { status });
+  NextResponse.json<LetterboxdWatchlist>({ username: '', slugs: [] }, { status });
 
 /**
  * Watchlists are public data, but a cold lookup costs up to 20 upstream page

@@ -33,7 +33,7 @@ The `ranking` phase is the staging phase where each participant drags their nomi
 - **Voting ties**: Random coin flip + UI feedback
 - **Letterboxd profile scraping** (`lib/letterboxd-server.ts`): direct fetch → RSS + activity-page fallback (avatar matched by display name, which can differ from username); blocked lookups are never cached; cache key `letterboxd:profile:v2:*` (v1 wrongly cached Cloudflare blocks as `exists:false`)
 - **Letterboxd rating scraping** (`lib/letterboxd-rating-server.ts`): Direct fetch with Jina Reader proxy fallback on Cloudflare; parses `twitter:data2` meta with JSON-LD fallback
-- **Letterboxd watchlist scraping** (`lib/letterboxd-watchlist-server.ts`): walks paginated watchlist pages for film slugs, caching under `letterboxd:watchlist:v1:*`; a block/error mid-walk returns partial results uncached so the next request retries; movies are matched client-side via `filmSlugFromUrl` against each movie's `letterboxdRating.filmUrl` — no extra per-movie requests. The route is session-gated (username must be a participant or eligible voter of the given `code`) since a cold walk costs up to 20 upstream fetches
+- **Letterboxd watchlist scraping** (`lib/letterboxd-watchlist-server.ts`): ALL-OR-NOTHING — parallel-batch walks every watchlist page and caches the complete slug set (`letterboxd:watchlist:v2:*`; v1 could cache partials); any failure mid-walk returns empty UNCACHED so the next request retries, because partial badges read as bugs. Movies match client-side via `filmSlugFromUrl` against `letterboxdRating.filmUrl` — no per-movie requests. Route is session-gated (username must be participant/eligible voter of `code`) since a cold walk can cost ~100 upstream fetches
 
 <!-- BEGIN:nextjs-agent-rules -->
 

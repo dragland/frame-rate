@@ -1,10 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import { extractWatchlistSlugs } from './letterboxd-watchlist-server';
+import { extractWatchlistSlugs, extractWatchlistPageCount } from './letterboxd-watchlist-server';
 import { filmSlugFromUrl } from './letterboxd';
+
+// Attribute shapes lifted from a real watchlist page (Aug 2026 markup)
+const REAL_POSTER_MARKUP = [
+  '<div class="poster film-poster" data-item-slug="i-want-your-sex" data-target-link="/film/i-want-your-sex/" data-item-link="/film/i-want-your-sex/"></div>',
+  '<div class="poster film-poster" data-item-slug="her-private-hell-2026" data-target-link="/film/her-private-hell-2026/"></div>',
+  '<div class="poster film-poster" data-item-slug="love-massacre" data-target-link="/film/love-massacre/"></div>',
+].join('');
 
 describe('letterboxd-watchlist-server', () => {
   describe('extractWatchlistSlugs', () => {
-    it('extracts bare slugs from data-film-slug attributes', () => {
+    it('extracts slugs from current data-item-slug markup', () => {
+      expect(extractWatchlistSlugs(REAL_POSTER_MARKUP)).toEqual([
+        'i-want-your-sex',
+        'her-private-hell-2026',
+        'love-massacre',
+      ]);
+    });
+
+    it('extracts bare slugs from legacy data-film-slug attributes', () => {
       const html = [
         '<div class="poster film-poster" data-film-slug="the-matrix"></div>',
         '<div class="poster film-poster" data-film-slug="dune-part-two"></div>',
@@ -36,6 +51,22 @@ describe('letterboxd-watchlist-server', () => {
 
     it('returns an empty array for pages without posters', () => {
       expect(extractWatchlistSlugs('<html><body>This watchlist is empty</body></html>')).toEqual([]);
+    });
+  });
+
+  describe('extractWatchlistPageCount', () => {
+    it('finds the last page from pagination links', () => {
+      const html = [
+        '<a href="/dammitdavy/watchlist/page/2/">2</a>',
+        '<a href="/dammitdavy/watchlist/page/3/">3</a>',
+        '<a href="/dammitdavy/watchlist/page/77/">77</a>',
+      ].join('');
+
+      expect(extractWatchlistPageCount(html)).toBe(77);
+    });
+
+    it('returns 1 when there is no pagination', () => {
+      expect(extractWatchlistPageCount(REAL_POSTER_MARKUP)).toBe(1);
     });
   });
 

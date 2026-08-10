@@ -3,6 +3,10 @@
  * Fetches a user's watchlist as a set of film slugs, so the UI can badge
  * movies that participants want to watch (matched via the film slug already
  * present in each movie's letterboxdRating.filmUrl).
+ *
+ * Semantics are ALL-OR-NOTHING: a walk either captures the complete
+ * watchlist or returns empty — partial results would surface as false
+ * negatives ("that film IS on my watchlist"), which read as bugs.
  */
 
 import getRedisClient from './redis';
@@ -11,20 +15,21 @@ import { fetchLetterboxdHtml } from './letterboxd-rating-server';
 
 export interface LetterboxdWatchlist {
   username: string;
+  /** Complete slug list, or empty when the watchlist is empty/unavailable */
   slugs: string[];
-  /** True when the watchlist had more pages than we were willing to fetch */
-  truncated: boolean;
 }
 
-// 28 films per page → 560 films. Anything past that is silently invisible to
-// badging, so the result carries `truncated` rather than pretending otherwise.
-const MAX_WATCHLIST_PAGES = 20;
+// 28 films per page → 2800 films. Bigger watchlists are treated as
+// unavailable (cached, so they aren't re-walked every request).
+const MAX_WATCHLIST_PAGES = 100;
 
-// Aggregate budget for one pagination walk. Each page fetch can take up to
-// ~25s worst case (direct timeout + Jina fallback), so without a deadline a
-// single request could run for minutes and time out at the platform layer.
-// Hitting the deadline caches a truncated result — decorative data, and one
-// expensive walk per cache TTL is the ceiling we want.
+// Pages are fetched in parallel batches: Letterboxd's Cloudflare blocking is
+// fingerprint-based, not rate-based, so serial fetching buys no safety and
+// costs wall-clock. 6 keeps one walk from looking like a flood.
+const PAGE_FETCH_CONCURRENCY = 6;
+
+// Aggregate budget for one walk; on overrun the result is unavailable
+// (uncached, so a faster attempt later can succeed).
 const WALK_BUDGET_MS = 20_000;
 
 // Coalesce concurrent walks for the same username: when a session assembles,
@@ -33,14 +38,14 @@ const WALK_BUDGET_MS = 20_000;
 const inFlightWatchlists = new Map<string, Promise<LetterboxdWatchlist>>();
 
 /**
- * Pull film slugs out of a watchlist page. Letterboxd poster markup carries
- * data-film-slug — bare ("the-matrix") in current markup, path-shaped
- * ("/film/the-matrix/") in older markup — with data-target-link as a fallback.
+ * Pull film slugs out of a watchlist page. Current Letterboxd markup carries
+ * data-item-slug (bare slug); older markup used data-film-slug (bare or
+ * path-shaped), with data-target-link as a last resort.
  */
 export function extractWatchlistSlugs(html: string): string[] {
   const slugs = new Set<string>();
 
-  for (const match of html.matchAll(/data-film-slug="([^"]+)"/g)) {
+  for (const match of html.matchAll(/data-(?:item|film)-slug="([^"]+)"/g)) {
     const slug = match[1].replace(/^\/+|\/+$/g, '').replace(/^film\//, '');
     if (slug) slugs.add(slug);
   }
@@ -55,16 +60,21 @@ export function extractWatchlistSlugs(html: string): string[] {
 }
 
 /**
- * Fetch a user's watchlist slugs, walking pagination until a page comes back
- * empty. Results are cached (CACHE_CONFIG.TTL); a Cloudflare block mid-walk
- * returns what we have WITHOUT caching, so the next request can retry —
- * a partial watchlist cached for 6 hours would silently hide badges.
+ * Total page count from page 1's pagination links (absent → single page).
  */
+export function extractWatchlistPageCount(html: string): number {
+  let last = 1;
+  for (const match of html.matchAll(/\/watchlist\/page\/(\d+)/g)) {
+    last = Math.max(last, Number.parseInt(match[1], 10));
+  }
+  return last;
+}
+
 export async function fetchLetterboxdWatchlist(username: string): Promise<LetterboxdWatchlist> {
   const cleanUsername = username.trim().toLowerCase();
 
   if (!cleanUsername) {
-    return { username: cleanUsername, slugs: [], truncated: false };
+    return { username: cleanUsername, slugs: [] };
   }
 
   const inFlight = inFlightWatchlists.get(cleanUsername);
@@ -80,9 +90,15 @@ export async function fetchLetterboxdWatchlist(username: string): Promise<Letter
 }
 
 async function walkWatchlist(cleanUsername: string): Promise<LetterboxdWatchlist> {
-  const empty: LetterboxdWatchlist = { username: cleanUsername, slugs: [], truncated: false };
+  const empty: LetterboxdWatchlist = { username: cleanUsername, slugs: [] };
   const redis = getRedisClient();
-  const cacheKey = `letterboxd:watchlist:v1:${cleanUsername}`;
+  // v2: v1 could cache partial (truncated/blocked-mid-walk) watchlists
+  const cacheKey = `letterboxd:watchlist:v2:${cleanUsername}`;
+
+  const cacheAndReturn = async (watchlist: LetterboxdWatchlist): Promise<LetterboxdWatchlist> => {
+    await redis.setex(cacheKey, CACHE_CONFIG.TTL, JSON.stringify(watchlist));
+    return watchlist;
+  };
 
   try {
     const cached = await redis.get(cacheKey);
@@ -90,60 +106,62 @@ async function walkWatchlist(cleanUsername: string): Promise<LetterboxdWatchlist
       return JSON.parse(cached);
     }
 
-    const slugs = new Set<string>();
-    let truncated = false;
-    let blocked = false;
     const startedAt = Date.now();
 
-    for (let page = 1; page <= MAX_WATCHLIST_PAGES; page++) {
-      if (page > 1 && Date.now() - startedAt > WALK_BUDGET_MS) {
-        truncated = true;
-        console.warn(`Letterboxd watchlist walk for ${cleanUsername} hit time budget at page ${page}`);
-        break;
+    const first = await fetchLetterboxdHtml(`/${cleanUsername}/watchlist/`);
+    if (first === null) {
+      // Blocked/unreachable — unknown, not empty: don't cache, retry later
+      return empty;
+    }
+    if (first === 'not-found') {
+      // No such user (or hidden watchlist) — a real answer, cacheable
+      return cacheAndReturn(empty);
+    }
+
+    const slugs = new Set<string>(extractWatchlistSlugs(first.html));
+    const pageCount = extractWatchlistPageCount(first.html);
+
+    if (pageCount > 1 && slugs.size === 0) {
+      // Pagination says films exist but the parser found none — markup
+      // changed again. Unavailable (uncached) beats silently badge-less.
+      console.warn(`Letterboxd watchlist parser found 0 slugs on page 1 for ${cleanUsername} (${pageCount} pages)`);
+      return empty;
+    }
+
+    if (pageCount > MAX_WATCHLIST_PAGES) {
+      console.warn(`Letterboxd watchlist for ${cleanUsername} has ${pageCount} pages (max ${MAX_WATCHLIST_PAGES}) — treating as unavailable`);
+      return cacheAndReturn(empty);
+    }
+
+    // Fetch remaining pages in parallel batches; ANY failure (block, 404,
+    // parser miss, time budget) makes the whole walk unavailable — never
+    // serve a partial watchlist.
+    for (let batchStart = 2; batchStart <= pageCount; batchStart += PAGE_FETCH_CONCURRENCY) {
+      if (Date.now() - startedAt > WALK_BUDGET_MS) {
+        console.warn(`Letterboxd watchlist walk for ${cleanUsername} hit time budget at page ${batchStart}`);
+        return empty;
       }
 
-      const path = page === 1
-        ? `/${cleanUsername}/watchlist/`
-        : `/${cleanUsername}/watchlist/page/${page}/`;
+      const batchEnd = Math.min(batchStart + PAGE_FETCH_CONCURRENCY - 1, pageCount);
+      const pages = await Promise.all(
+        Array.from({ length: batchEnd - batchStart + 1 }, (_, i) =>
+          fetchLetterboxdHtml(`/${cleanUsername}/watchlist/page/${batchStart + i}/`)
+        )
+      );
 
-      const result = await fetchLetterboxdHtml(path);
-
-      if (result === null) {
-        // Blocked/unreachable — keep whatever we already collected
-        blocked = true;
-        break;
-      }
-
-      if (result === 'not-found') {
-        // Page 1: no such user or private watchlist. Later pages: walked past
-        // the end. Either way we're done.
-        break;
-      }
-
-      const pageSlugs = extractWatchlistSlugs(result.html);
-      if (pageSlugs.length === 0) {
-        break;
-      }
-
-      pageSlugs.forEach(slug => slugs.add(slug));
-
-      if (page === MAX_WATCHLIST_PAGES) {
-        truncated = true;
-        console.warn(`Letterboxd watchlist for ${cleanUsername} truncated at ${MAX_WATCHLIST_PAGES} pages`);
+      for (const page of pages) {
+        if (page === null || page === 'not-found') {
+          return empty;
+        }
+        const pageSlugs = extractWatchlistSlugs(page.html);
+        if (pageSlugs.length === 0) {
+          return empty;
+        }
+        pageSlugs.forEach(slug => slugs.add(slug));
       }
     }
 
-    const watchlist: LetterboxdWatchlist = {
-      username: cleanUsername,
-      slugs: Array.from(slugs),
-      truncated,
-    };
-
-    if (!blocked) {
-      await redis.setex(cacheKey, CACHE_CONFIG.TTL, JSON.stringify(watchlist));
-    }
-
-    return watchlist;
+    return cacheAndReturn({ username: cleanUsername, slugs: Array.from(slugs) });
   } catch (error) {
     console.error('Failed to fetch Letterboxd watchlist:', error);
     return empty;
