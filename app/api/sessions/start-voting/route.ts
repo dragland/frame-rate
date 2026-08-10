@@ -56,10 +56,6 @@ export async function POST(request: NextRequest) {
         session.votingPhase = 'vetoing';
         session.isVotingOpen = true;
 
-        session.participants.forEach(p => {
-          p.finalMovies = undefined;
-        });
-
         return session;
       }
     );

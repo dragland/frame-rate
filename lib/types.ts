@@ -13,7 +13,6 @@ export type MovieNomination = Movie & {
 export interface SessionParticipant {
   username: string;
   movies: Movie[];
-  finalMovies?: Movie[]; // Rankings after vetoing phase
   joinedAt: Date;
   profilePicture?: string | null; // Letterboxd profile picture URL
   letterboxdExists?: boolean; // Whether the Letterboxd profile exists
@@ -48,6 +47,8 @@ export interface Session {
   // username → vetoed nominationId. Lives on the session, not the participant,
   // so leaving/rejoining can neither undo nor repeat a veto.
   vetoes: Record<string, string>;
+  // username → submitted final ranking. Session-level for the same reason.
+  finalRankings: Record<string, Movie[]>;
   votingResults?: VotingResults;
 }
 

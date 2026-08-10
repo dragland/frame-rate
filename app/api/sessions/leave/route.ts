@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { atomicSessionUpdate, publishSessionUpdate } from '@/lib/redis';
 import { Session, SessionResponse } from '../../../../lib/types';
 import { SESSION_CONFIG } from '../../../../lib/constants';
-import { advanceVotingPhaseIfComplete } from '../../../../lib/voting';
 import { isValidSessionCode, isValidUsername, normalizeSessionCode, normalizeUsername } from '../../../../lib/validation';
 
 export async function POST(request: NextRequest) {
@@ -51,10 +50,10 @@ export async function POST(request: NextRequest) {
           session.host = session.participants[0].username;
         }
 
-        // A departure can change the remaining pool and/or make the departing
-        // user the last blocker — re-check the phase transition.
-        advanceVotingPhaseIfComplete(session);
-
+        // Presence never affects phase completion — that's judged against the
+        // frozen pool's eligible voters, so a leave neither blocks nor
+        // fast-forwards anything. The leaver can rejoin and pick up where
+        // they left off.
         return session;
       }
     );

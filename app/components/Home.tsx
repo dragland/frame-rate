@@ -335,12 +335,6 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
 
   const handleExitSession = async () => {
     if (sessionData && sessionMode !== 'solo') {
-      // Mid-vote, leaving is deliberate — picks and vetoes stay in the pool
-      // either way, but don't let a stray tap on the logo eject someone
-      if (sessionData.votingPhase !== 'ranking' &&
-          !window.confirm('Leave movie night? Your picks and veto stay in the pool, and you can rejoin with the same name.')) {
-        return;
-      }
       try {
         await leaveSession(sessionData.code, username);
       } catch (error) {

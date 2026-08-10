@@ -57,6 +57,7 @@ export async function POST(request: NextRequest) {
         isVotingOpen: false,
         nominations: [],
         vetoes: {},
+        finalRankings: {},
         maxParticipants: SESSION_CONFIG.MAX_PARTICIPANTS,
         votingPhase: 'ranking',
       };

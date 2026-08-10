@@ -451,29 +451,31 @@ describe('redis.ts - Memory Fallback Mode', () => {
           overview: 'Overview 2',
         },
       ];
-      session.participants[0].finalMovies = [
-        {
-          id: 2,
-          title: 'Movie 2',
-          poster_path: '/2.jpg',
-          release_date: '2024-01-02',
-          overview: 'Overview 2',
-        },
-        {
-          id: 1,
-          title: 'Movie 1',
-          poster_path: '/1.jpg',
-          release_date: '2024-01-01',
-          overview: 'Overview 1',
-        },
-      ];
+      session.finalRankings = {
+        alice: [
+          {
+            id: 2,
+            title: 'Movie 2',
+            poster_path: '/2.jpg',
+            release_date: '2024-01-02',
+            overview: 'Overview 2',
+          },
+          {
+            id: 1,
+            title: 'Movie 1',
+            poster_path: '/1.jpg',
+            release_date: '2024-01-01',
+            overview: 'Overview 1',
+          },
+        ],
+      };
 
       await atomicSessionCreate('DEEP', session, 3600);
       const retrieved = await atomicSessionUpdate('DEEP', 3600, (s) => s);
 
       expect(retrieved?.participants[0].movies).toHaveLength(2);
-      expect(retrieved?.participants[0].finalMovies).toHaveLength(2);
-      expect(retrieved?.participants[0].finalMovies?.[0].id).toBe(2);
+      expect(retrieved?.finalRankings.alice).toHaveLength(2);
+      expect(retrieved?.finalRankings.alice[0].id).toBe(2);
     });
   });
 });

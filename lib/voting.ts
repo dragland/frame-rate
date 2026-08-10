@@ -29,6 +29,14 @@ export const lockNominations = (session: Session): void => {
     }))
   );
   session.vetoes = {};
+  session.finalRankings = {};
+};
+
+// Everyone who contributed nominations at lock time, present or not. Phase
+// completion is judged against this set — being away never fast-forwards a
+// phase past someone's veto or ranking.
+export const getEligibleVoters = (session: Session): string[] => {
+  return Array.from(new Set(session.nominations.map(n => n.nominatedBy)));
 };
 
 // Only people who contributed nominations at lock time may vote (or rejoin mid-vote)
@@ -38,17 +46,6 @@ export const isEligibleVoter = (session: Session, username: string): boolean => 
 
 export const hasVetoed = (session: Session, username: string): boolean => {
   return username in session.vetoes;
-};
-
-export const getAllMovies = (session: Session): Movie[] => {
-  const movieMap = new Map<number, Movie>();
-  session.participants.forEach(participant => {
-    // Only take the first 2 movies from each participant for the voting pool
-    participant.movies.slice(0, 2).forEach(movie => {
-      movieMap.set(movie.id, movie);
-    });
-  });
-  return Array.from(movieMap.values());
 };
 
 // Get remaining nominations after vetoes
@@ -92,8 +89,17 @@ export const orderMoviesFromCanonicalSet = (movies: Movie[], canonicalMovies: Mo
   return movies.map(movie => canonicalMovies.find(canonicalMovie => canonicalMovie.id === movie.id)!);
 };
 
+// One ballot per eligible voter: their submitted final ranking, or their
+// nomination order from the frozen pool if they never submitted one
+const getBallots = (session: Session): Movie[][] => {
+  return getEligibleVoters(session).map(username =>
+    session.finalRankings[username] ??
+      session.nominations.filter(n => n.nominatedBy === username)
+  );
+};
+
 export const calculateRankedChoiceWinner = (session: Session): VotingResults => {
-  const allMovies = getAllMovies(session);
+  const ballots = getBallots(session);
   let remainingMovies = getRemainingMovies(session);
   const eliminatedMovies: Movie[] = [];
   const rounds: VotingResults['rounds'] = [];
@@ -105,25 +111,20 @@ export const calculateRankedChoiceWinner = (session: Session): VotingResults => 
   }
 
   console.log(`🗳️ Starting ranked choice voting:`);
-  console.log(`📊 Total movies: ${allMovies.length}, Remaining: ${remainingMovies.length}`);
+  console.log(`📊 Ballots: ${ballots.length}, Remaining: ${remainingMovies.length}`);
   console.log(`🎬 Remaining movies:`, remainingMovies.map(m => m.title));
 
   while (remainingMovies.length > 1) {
     const votes: { [movieId: number]: number } = {};
-    
+
     // Initialize vote counts
     remainingMovies.forEach(movie => {
       votes[movie.id] = 0;
     });
 
     // Count first-choice votes for remaining movies
-    // Use finalMovies if available (after final ranking), otherwise fall back to original movies
-    session.participants.forEach(participant => {
-      const movieList = participant.finalMovies && participant.finalMovies.length > 0 
-        ? participant.finalMovies 
-        : participant.movies;
-      
-      const firstChoice = movieList.find(movie => 
+    ballots.forEach(ballot => {
+      const firstChoice = ballot.find(movie =>
         remainingMovies.some(rm => rm.id === movie.id)
       );
       if (firstChoice) {
@@ -132,7 +133,7 @@ export const calculateRankedChoiceWinner = (session: Session): VotingResults => 
     });
 
     // Check for majority winner
-    const totalVotes = session.participants.length;
+    const totalVotes = ballots.length;
     const majority = Math.floor(totalVotes / 2) + 1;
     
     const winner = remainingMovies.find(movie => votes[movie.id] >= majority);
@@ -193,12 +194,8 @@ export const calculateRankedChoiceWinner = (session: Session): VotingResults => 
     finalVotes[movie.id] = 0;
   });
   
-  session.participants.forEach(participant => {
-    const movieList = participant.finalMovies && participant.finalMovies.length > 0 
-      ? participant.finalMovies 
-      : participant.movies;
-    
-    const firstChoice = movieList.find(movie => 
+  ballots.forEach(ballot => {
+    const firstChoice = ballot.find(movie =>
       remainingMovies.some(rm => rm.id === movie.id)
     );
     if (firstChoice) {
@@ -241,7 +238,9 @@ export const calculateRankedChoiceWinner = (session: Session): VotingResults => 
 // Called at the end of every atomic modifier that can complete a phase (veto,
 // final-movies, leave) so the transition rules live in exactly one place.
 export const advanceVotingPhaseIfComplete = (session: Session): void => {
-  if (session.votingPhase === 'vetoing' && session.participants.every(p => hasVetoed(session, p.username))) {
+  const eligibleVoters = getEligibleVoters(session);
+
+  if (session.votingPhase === 'vetoing' && eligibleVoters.every(voter => hasVetoed(session, voter))) {
     if (getRemainingMovies(session).length <= 1) {
       session.votingPhase = 'results';
       session.votingResults = calculateRankedChoiceWinner(session);
@@ -249,17 +248,15 @@ export const advanceVotingPhaseIfComplete = (session: Session): void => {
     }
 
     session.votingPhase = 'finalRanking';
-    session.participants.forEach(p => {
-      p.finalMovies = undefined;
-    });
     return;
   }
 
   if (session.votingPhase === 'finalRanking') {
     const remainingMovies = getRemainingMovies(session);
-    const allCompleted = session.participants.every(
-      p => p.finalMovies && isExactMovieSet(p.finalMovies, remainingMovies)
-    );
+    const allCompleted = eligibleVoters.every(voter => {
+      const ranking = session.finalRankings[voter];
+      return ranking && isExactMovieSet(ranking, remainingMovies);
+    });
 
     if (remainingMovies.length <= 1 || allCompleted) {
       session.votingPhase = 'results';

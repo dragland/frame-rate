@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
           return null;
         }
 
-        if (participant.finalMovies && participant.finalMovies.length > 0) {
+        if (trimmedUsername in session.finalRankings) {
           validationError = 'Final ranking is already locked';
           return null;
         }
@@ -59,8 +59,8 @@ export async function POST(request: NextRequest) {
           return null;
         }
 
-        // Update participant's final movies
-        participant.finalMovies = orderMoviesFromCanonicalSet(movies, remainingMovies);
+        // Record the ranking on the session so it survives leaving/rejoining
+        session.finalRankings[trimmedUsername] = orderMoviesFromCanonicalSet(movies, remainingMovies);
 
         advanceVotingPhaseIfComplete(session);
 

@@ -31,7 +31,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
   const userVetoedNomination = hasUserVetoed
     ? session.nominations.find(nomination => nomination.nominationId === session.vetoes[username])
     : undefined;
-  const hasUserFinalRanked = currentUser?.finalMovies && currentUser.finalMovies.length > 0;
+  const hasUserFinalRanked = username in session.finalRankings;
 
   React.useEffect(() => {
     return () => {
@@ -269,7 +269,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
         <div className="mt-4">
           <div className="flex justify-center items-center space-x-1 flex-wrap gap-1">
             {session.participants.map((participant) => {
-              const hasCompleted = participant.finalMovies && participant.finalMovies.length > 0;
+              const hasCompleted = participant.username in session.finalRankings;
               return (
                 <div
                   key={participant.username}
