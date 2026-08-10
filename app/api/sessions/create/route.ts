@@ -55,6 +55,8 @@ export async function POST(request: NextRequest) {
         }],
         createdAt: now,
         isVotingOpen: false,
+        nominations: [],
+        vetoes: {},
         maxParticipants: SESSION_CONFIG.MAX_PARTICIPANTS,
         votingPhase: 'ranking',
       };

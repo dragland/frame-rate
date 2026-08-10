@@ -5,13 +5,16 @@ export type { Movie };
 
 export type VotingPhase = 'ranking' | 'vetoing' | 'finalRanking' | 'results';
 
+export type MovieNomination = Movie & {
+  nominatedBy: string;
+  nominationId: string; // Format: "movieId-nominatedBy"
+};
+
 export interface SessionParticipant {
   username: string;
   movies: Movie[];
   finalMovies?: Movie[]; // Rankings after vetoing phase
   joinedAt: Date;
-  hasVoted?: boolean;
-  vetoedNominationId?: string; // Format: "movieId-nominatedBy" to track specific nominations
   profilePicture?: string | null; // Letterboxd profile picture URL
   letterboxdExists?: boolean; // Whether the Letterboxd profile exists
 }
@@ -39,6 +42,12 @@ export interface Session {
   isVotingOpen: boolean;
   maxParticipants: number;
   votingPhase: VotingPhase;
+  // Frozen at lock time (start-voting). Survives participants leaving, and is
+  // the eligibility record: only usernames with nominations here may vote.
+  nominations: MovieNomination[];
+  // username → vetoed nominationId. Lives on the session, not the participant,
+  // so leaving/rejoining can neither undo nor repeat a veto.
+  vetoes: Record<string, string>;
   votingResults?: VotingResults;
 }
 

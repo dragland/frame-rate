@@ -3,6 +3,7 @@ import getRedisClient, { atomicSessionUpdate, publishSessionUpdate } from '@/lib
 import { Session, JoinSessionRequest, SessionResponse } from '../../../../lib/types';
 import { validateLetterboxdProfile } from '../../../../lib/letterboxd-server';
 import { SESSION_CONFIG } from '../../../../lib/constants';
+import { isEligibleVoter } from '../../../../lib/voting';
 import { isValidSessionCode, isValidUsername, normalizeSessionCode, normalizeUsername } from '../../../../lib/validation';
 
 export async function POST(request: NextRequest) {
@@ -60,7 +61,10 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    if (existingSession.votingPhase !== 'ranking') {
+    // Mid-vote, only people whose nominations are in the frozen pool may
+    // (re)join — everyone in the pool contributed their top 2, so late
+    // arrivals can't get a veto without having nominated
+    if (existingSession.votingPhase !== 'ranking' && !isEligibleVoter(existingSession, trimmedUsername)) {
       return NextResponse.json<SessionResponse>({
         success: false,
         error: 'Session has already started'
@@ -93,15 +97,16 @@ export async function POST(request: NextRequest) {
           return null;
         }
 
-        if (session.votingPhase !== 'ranking') {
+        if (session.votingPhase !== 'ranking' && !isEligibleVoter(session, trimmedUsername)) {
           validationError = 'Session has already started';
           return null;
         }
 
-        // Add new participant
+        // Add the participant. A mid-vote rejoiner gets their movies back from
+        // the frozen pool (empty during ranking, where nominations is [])
         session.participants.push({
           username: trimmedUsername,
-          movies: [],
+          movies: session.nominations.filter(n => n.nominatedBy === trimmedUsername),
           joinedAt: new Date(),
           profilePicture: profile.profilePicture,
           letterboxdExists: profile.exists,

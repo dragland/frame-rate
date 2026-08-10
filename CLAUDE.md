@@ -18,14 +18,16 @@ await publishSessionUpdate(code, updated);  // SSE broadcast
 ranking → vetoing → finalRanking → results
 ```
 
-The `ranking` phase is the staging phase where each participant drags their nominations into order. Starting voting locks each participant's top 2 nominations by moving directly to `vetoing`. All later transitions go through `advanceVotingPhaseIfComplete` (lib/voting.ts) — called from the veto, final-movies, and leave routes; `vetoing` skips straight to `results` if ≤1 movie remains after vetoes.
+The `ranking` phase is the staging phase where each participant drags their nominations into order. Starting voting freezes each participant's top 2 into `session.nominations` (`lockNominations`) and moves to `vetoing`. All later transitions go through `advanceVotingPhaseIfComplete` (lib/voting.ts) — called from the veto, final-movies, and leave routes; `vetoing` skips straight to `results` if ≤1 movie remains after vetoes.
 
 ## Key Patterns
 
 - **Validation in atomic modifiers**: Capture errors in closure variable, return `null` to abort, check after for HTTP status
 - **Input validation**: `lib/validation.ts` gates every route — codes `[A-Z]{4}`, usernames `[a-z0-9_]{1,32}`, movie payloads shape+size checked
 - **Usernames**: always stored lowercase (`normalizeUsername` on every entry point, incl. client localStorage reads) — comparisons are strict equality
-- **Leave route**: reassigns host to `participants[0]` if the host left, and re-runs phase advancement (clearing stale `finalMovies`) since a departure changes the pool
+- **Frozen pool**: `session.nominations` + `session.vetoes` (username → nominationId) live on the session, never on participants — leaving/rejoining can't change the pool, undo a veto, or enable a double veto
+- **Rejoin eligibility**: mid-vote joins allowed only for usernames with nominations in the frozen pool (`isEligibleVoter`); their movies are restored from it
+- **Leave route**: reassigns host to `participants[0]` if the host left, then re-runs phase advancement (the leaver may have been the last blocker)
 - **Storage**: `lib/redis.ts` abstracts Redis (prod) / in-memory Map (dev) - auto-detected by `REDIS_URL`
 - **SSE race condition**: Subscribe to pub/sub BEFORE fetching state (see `stream/route.ts`)
 - **Duplicate nominations**: Same movie from different users → `nominationId` (`"movieId-username"`, required) is the canonical veto target

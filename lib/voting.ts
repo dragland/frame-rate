@@ -1,10 +1,7 @@
 import { Movie } from './tmdb';
-import { Session, SessionParticipant, VotingResults, StartVotingRequest, VetoMovieRequest, UpdateFinalMoviesRequest } from './types';
+import { MovieNomination, Session, SessionParticipant, VotingResults, StartVotingRequest, VetoMovieRequest, UpdateFinalMoviesRequest } from './types';
 
-export type MovieNomination = Movie & {
-  nominatedBy: string;
-  nominationId: string;
-};
+export type { MovieNomination };
 
 export const createNominationId = (movieId: number, username: string): string => {
   return `${movieId}-${username}`;
@@ -20,6 +17,29 @@ export const canStartVoting = (session: Session): boolean => {
          session.participants.length >= 2;
 };
 
+// Freeze each participant's top 2 into the session's nomination pool and reset
+// vetoes. From here on the pool is immutable — participants leaving (or
+// rejoining) can't change what's up for vote.
+export const lockNominations = (session: Session): void => {
+  session.nominations = session.participants.flatMap(participant =>
+    participant.movies.slice(0, 2).map(movie => ({
+      ...movie,
+      nominatedBy: participant.username,
+      nominationId: createNominationId(movie.id, participant.username),
+    }))
+  );
+  session.vetoes = {};
+};
+
+// Only people who contributed nominations at lock time may vote (or rejoin mid-vote)
+export const isEligibleVoter = (session: Session, username: string): boolean => {
+  return session.nominations.some(nomination => nomination.nominatedBy === username);
+};
+
+export const hasVetoed = (session: Session, username: string): boolean => {
+  return username in session.vetoes;
+};
+
 export const getAllMovies = (session: Session): Movie[] => {
   const movieMap = new Map<number, Movie>();
   session.participants.forEach(participant => {
@@ -31,34 +51,11 @@ export const getAllMovies = (session: Session): Movie[] => {
   return Array.from(movieMap.values());
 };
 
-// Get all movie nominations including duplicates (for veto phase)
-export const getAllMovieNominations = (session: Session): MovieNomination[] => {
-  const nominations: MovieNomination[] = [];
-  session.participants.forEach(participant => {
-    // Only take the first 2 movies from each participant for the voting pool
-    participant.movies.slice(0, 2).forEach(movie => {
-      nominations.push({
-        ...movie,
-        nominatedBy: participant.username,
-        nominationId: createNominationId(movie.id, participant.username),
-      });
-    });
-  });
-  return nominations;
-};
-
-// Get vetoed nominations (including duplicates)
-export const getVetoedNominations = (session: Session): string[] => {
-  return session.participants
-    .filter(p => p.vetoedNominationId)
-    .map(p => p.vetoedNominationId!);
-};
-
 // Get remaining nominations after vetoes
 export const getRemainingNominations = (session: Session): MovieNomination[] => {
-  const vetoedNominationIds = getVetoedNominations(session);
-  return getAllMovieNominations(session)
-    .filter(nomination => !vetoedNominationIds.includes(nomination.nominationId));
+  const vetoedNominationIds = new Set(Object.values(session.vetoes));
+  return session.nominations
+    .filter(nomination => !vetoedNominationIds.has(nomination.nominationId));
 };
 
 export const getRemainingMovies = (session: Session): Movie[] => {
@@ -244,7 +241,7 @@ export const calculateRankedChoiceWinner = (session: Session): VotingResults => 
 // Called at the end of every atomic modifier that can complete a phase (veto,
 // final-movies, leave) so the transition rules live in exactly one place.
 export const advanceVotingPhaseIfComplete = (session: Session): void => {
-  if (session.votingPhase === 'vetoing' && session.participants.every(p => p.hasVoted)) {
+  if (session.votingPhase === 'vetoing' && session.participants.every(p => hasVetoed(session, p.username))) {
     if (getRemainingMovies(session).length <= 1) {
       session.votingPhase = 'results';
       session.votingResults = calculateRankedChoiceWinner(session);
@@ -260,16 +257,6 @@ export const advanceVotingPhaseIfComplete = (session: Session): void => {
 
   if (session.votingPhase === 'finalRanking') {
     const remainingMovies = getRemainingMovies(session);
-
-    // A participant leaving can change the remaining pool (their nominations
-    // vanish and their veto is undone), stranding already-submitted rankings.
-    // Clear stale rankings so those participants can resubmit.
-    session.participants.forEach(p => {
-      if (p.finalMovies && !isExactMovieSet(p.finalMovies, remainingMovies)) {
-        p.finalMovies = undefined;
-      }
-    });
-
     const allCompleted = session.participants.every(
       p => p.finalMovies && isExactMovieSet(p.finalMovies, remainingMovies)
     );

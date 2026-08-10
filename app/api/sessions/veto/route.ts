@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { atomicSessionUpdate, publishSessionUpdate } from '@/lib/redis';
 import { Session, VetoMovieRequest, SessionResponse } from '../../../../lib/types';
 import { SESSION_CONFIG } from '../../../../lib/constants';
-import { advanceVotingPhaseIfComplete, findRemainingNomination } from '../../../../lib/voting';
+import { advanceVotingPhaseIfComplete, findRemainingNomination, hasVetoed } from '../../../../lib/voting';
 import { isValidSessionCode, isValidUsername, normalizeSessionCode, normalizeUsername } from '../../../../lib/validation';
 
 export async function POST(request: NextRequest) {
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
           return null;
         }
 
-        if (participant.hasVoted || participant.vetoedNominationId) {
+        if (hasVetoed(session, trimmedUsername)) {
           validationError = 'User has already vetoed';
           return null;
         }
@@ -58,9 +58,8 @@ export async function POST(request: NextRequest) {
           return null;
         }
 
-        // Record the veto
-        participant.vetoedNominationId = nomination.nominationId;
-        participant.hasVoted = true;
+        // Record the veto on the session so leaving/rejoining can't reset it
+        session.vetoes[trimmedUsername] = nomination.nominationId;
 
         advanceVotingPhaseIfComplete(session);
 

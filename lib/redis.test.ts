@@ -47,6 +47,8 @@ const createTestSession = (code: string = 'TEST'): Session => ({
   isVotingOpen: false,
   maxParticipants: 8,
   votingPhase: 'ranking',
+  nominations: [],
+  vetoes: {},
 });
 
 describe('redis.ts - Memory Fallback Mode', () => {
@@ -228,14 +230,10 @@ describe('redis.ts - Memory Fallback Mode', () => {
       // Update a participant's movies
       const updated2 = await atomicSessionUpdate('PART', 3600, (s) => ({
         ...s,
-        participants: s.participants.map((p) =>
-          p.username === 'bob'
-            ? { ...p, vetoedNominationId: '1-alice' }
-            : p
-        ),
+        vetoes: { ...s.vetoes, bob: '1-alice' },
       }));
 
-      expect(updated2?.participants.find((p) => p.username === 'bob')?.vetoedNominationId).toBe('1-alice');
+      expect(updated2?.vetoes.bob).toBe('1-alice');
     });
 
     it('should delete the session when the modifier returns delete', async () => {
@@ -297,8 +295,8 @@ describe('redis.ts - Memory Fallback Mode', () => {
           },
         ],
         joinedAt: new Date('2024-01-01'),
-        vetoedNominationId: '50-alice',
       });
+      session.vetoes = { bob: '50-alice' };
 
       const emitter = getSessionEmitter();
       const listener = vi.fn();
@@ -311,7 +309,7 @@ describe('redis.ts - Memory Fallback Mode', () => {
 
       expect(parsed.participants).toHaveLength(2);
       expect(parsed.participants[1].username).toBe('bob');
-      expect(parsed.participants[1].vetoedNominationId).toBe('50-alice');
+      expect(parsed.vetoes.bob).toBe('50-alice');
       expect(parsed.participants[1].movies[0].id).toBe(100);
     });
   });
@@ -399,6 +397,8 @@ describe('redis.ts - Memory Fallback Mode', () => {
         isVotingOpen: false,
         maxParticipants: 8,
         votingPhase: 'ranking',
+        nominations: [],
+        vetoes: {},
       };
 
       await atomicSessionCreate('EMPTY', session, 3600);

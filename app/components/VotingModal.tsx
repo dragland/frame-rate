@@ -3,7 +3,7 @@
 import React, { useRef, useState } from 'react';
 import { Session } from '../../lib/types';
 import { Movie, getImageUrl, formatRuntime } from '../../lib/tmdb';
-import { getAllMovieNominations, getRemainingMovies, getRemainingNominations, vetoNomination, updateFinalMovies } from '../../lib/voting';
+import { getRemainingMovies, getRemainingNominations, hasVetoed, vetoNomination, updateFinalMovies } from '../../lib/voting';
 import ProfilePicture from './ProfilePicture';
 import Image from 'next/image';
 
@@ -18,24 +18,30 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [finalMovies, setFinalMovies] = useState<Movie[]>([]);
-  const [pendingVeto, setPendingVeto] = useState<{ nominationId: string; title: string } | null>(null);
+  // Two-stage veto: first tap arms the button ("Confirm?"), second tap fires.
+  // Auto-disarms after a few seconds.
+  const [armedVetoId, setArmedVetoId] = useState<string | null>(null);
+  const disarmTimerRef = useRef<NodeJS.Timeout | null>(null);
   const vetoInFlightRef = useRef(false);
 
-
   const remainingMovies = getRemainingMovies(session);
-  const allNominations = getAllMovieNominations(session);
   const remainingNominations = getRemainingNominations(session);
   const currentUser = session.participants.find(p => p.username === username);
-  const hasUserVetoed = currentUser?.hasVoted || false;
-  const userVetoedNomination = currentUser?.vetoedNominationId
-    ? allNominations.find(nomination => nomination.nominationId === currentUser.vetoedNominationId)
+  const hasUserVetoed = hasVetoed(session, username);
+  const userVetoedNomination = hasUserVetoed
+    ? session.nominations.find(nomination => nomination.nominationId === session.vetoes[username])
     : undefined;
   const hasUserFinalRanked = currentUser?.finalMovies && currentUser.finalMovies.length > 0;
 
+  React.useEffect(() => {
+    return () => {
+      if (disarmTimerRef.current) clearTimeout(disarmTimerRef.current);
+    };
+  }, []);
+
   // The displayed ranking is derived, not synced: the user's drag order
   // (finalMovies) is kept where it still applies, and the rest of the pool is
-  // appended in the user's original nomination order. This self-heals when the
-  // pool changes underneath us (e.g. a participant left mid-phase).
+  // appended in the user's original nomination order.
   const orderedFinalMovies = React.useMemo(() => {
     if (session.votingPhase !== 'finalRanking') return [];
 
@@ -53,18 +59,11 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
     ];
   }, [session.votingPhase, remainingMovies, finalMovies, currentUser?.movies]);
 
-  // A pending veto dialog goes stale if someone else vetoed that nomination first
-  const activePendingVeto = pendingVeto &&
-    remainingNominations.some(n => n.nominationId === pendingVeto.nominationId)
-    ? pendingVeto
-    : null;
-
   const handleVetoNomination = async (nominationId: string) => {
     if (vetoInFlightRef.current || hasUserVetoed) return;
     vetoInFlightRef.current = true;
     setIsLoading(true);
     setError('');
-    setPendingVeto(null);
 
     try {
       const response = await vetoNomination(session.code, username, nominationId);
@@ -81,12 +80,17 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
     setIsLoading(false);
   };
 
-  const handleVetoClick = (nominationId: string, title: string) => {
-    setPendingVeto({ nominationId, title });
-  };
+  const handleVetoButton = (nominationId: string) => {
+    if (disarmTimerRef.current) clearTimeout(disarmTimerRef.current);
 
-  const cancelVeto = () => {
-    setPendingVeto(null);
+    if (armedVetoId === nominationId) {
+      setArmedVetoId(null);
+      handleVetoNomination(nominationId);
+      return;
+    }
+
+    setArmedVetoId(nominationId);
+    disarmTimerRef.current = setTimeout(() => setArmedVetoId(null), 3000);
   };
 
   const handleUpdateFinalMovies = async () => {
@@ -137,31 +141,34 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
         </h3>
         {!hasUserVetoed && (
           <p className="text-gray-400 text-sm">
-            Veto one film from pool
+            Tap Veto, then Confirm to eliminate one film — no undo
           </p>
         )}
         
         {/* Veto progress with profile pictures */}
         <div className="mt-4">
           <div className="flex justify-center items-center space-x-1 flex-wrap gap-1">
-            {session.participants.map((participant) => (
-              <div
-                key={participant.username}
-                className={`relative ${participant.hasVoted ? 'opacity-100' : 'opacity-40'}`}
-                title={participant.hasVoted ? `${participant.username} - Voted` : `${participant.username} - Waiting`}
-              >
-                <ProfilePicture 
-                  username={participant.username}
-                  profilePicture={participant.profilePicture}
-                  size="sm"
-                />
-                {participant.hasVoted && (
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border border-gray-900 flex items-center justify-center">
-                    <span className="text-[8px] text-white">✓</span>
-                  </div>
-                )}
-              </div>
-            ))}
+            {session.participants.map((participant) => {
+              const voted = hasVetoed(session, participant.username);
+              return (
+                <div
+                  key={participant.username}
+                  className={`relative ${voted ? 'opacity-100' : 'opacity-40'}`}
+                  title={voted ? `${participant.username} - Voted` : `${participant.username} - Waiting`}
+                >
+                  <ProfilePicture
+                    username={participant.username}
+                    profilePicture={participant.profilePicture}
+                    size="sm"
+                  />
+                  {voted && (
+                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border border-gray-900 flex items-center justify-center">
+                      <span className="text-[8px] text-white">✓</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -172,37 +179,16 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
         </div>
       ) : (
         <div>
-          {/* Veto confirmation dialog */}
-          {activePendingVeto && (
-            <div className="mb-4 p-4 bg-red-900/50 border border-red-700 rounded-lg">
-              <p className="text-white text-sm mb-3">
-                Eliminate <span className="font-semibold">&quot;{activePendingVeto.title}&quot;</span> from the pool? This cannot be undone.
-              </p>
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => handleVetoNomination(activePendingVeto.nominationId)}
-                  disabled={isLoading}
-                  className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 text-white py-2 px-3 rounded font-semibold text-sm transition-colors"
-                >
-                  {isLoading ? 'Vetoing...' : 'Confirm Veto'}
-                </button>
-                <button
-                  onClick={cancelVeto}
-                  disabled={isLoading}
-                  className="flex-1 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-600 text-white py-2 px-3 rounded font-semibold text-sm transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-
           <div className="space-y-3 max-h-96 overflow-y-auto">
             {remainingNominations.map((nomination) => (
               <div
                 key={nomination.nominationId}
-                className={`flex items-center space-x-3 p-3 bg-gray-800 rounded-lg hover:bg-gray-700 cursor-pointer transition-all ${activePendingVeto?.nominationId === nomination.nominationId ? 'ring-2 ring-red-500' : ''}`}
-                onClick={() => handleVetoClick(nomination.nominationId, nomination.title)}
+                className={`flex items-center space-x-3 p-3 bg-gray-800 rounded-lg transition-all ${nomination.letterboxdRating ? 'hover:bg-gray-700 cursor-pointer' : ''} ${armedVetoId === nomination.nominationId ? 'ring-2 ring-red-500' : ''}`}
+                onClick={() => {
+                  if (nomination.letterboxdRating) {
+                    window.open(nomination.letterboxdRating.filmUrl, '_blank');
+                  }
+                }}
               >
                 <Image
                   src={getImageUrl(nomination.poster_path)}
@@ -232,13 +218,31 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
                     <span className="text-yellow-600 dark:text-yellow-400">{Math.round(nomination.vote_average * 10)}%</span>
                   </div>
                 </div>
-                <button className="text-red-500 hover:text-red-700 px-3 py-1 rounded font-semibold flex items-center space-x-1">
-                  <ProfilePicture
-                    username={nomination.nominatedBy}
-                    profilePicture={session.participants.find(p => p.username === nomination.nominatedBy)?.profilePicture}
-                    size="sm"
-                  />
-                  <span>Veto</span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleVetoButton(nomination.nominationId);
+                  }}
+                  disabled={isLoading}
+                  className={`px-3 py-1 rounded font-semibold flex items-center space-x-1 flex-shrink-0 transition-colors ${
+                    armedVetoId === nomination.nominationId
+                      ? 'bg-red-600 hover:bg-red-700 text-white'
+                      : 'text-red-500 hover:text-red-700'
+                  }`}
+                  title={armedVetoId === nomination.nominationId ? 'Tap again to veto — no undo' : `Nominated by ${nomination.nominatedBy}`}
+                >
+                  {armedVetoId === nomination.nominationId ? (
+                    <span>Confirm?</span>
+                  ) : (
+                    <>
+                      <ProfilePicture
+                        username={nomination.nominatedBy}
+                        profilePicture={session.participants.find(p => p.username === nomination.nominatedBy)?.profilePicture}
+                        size="sm"
+                      />
+                      <span>Veto</span>
+                    </>
+                  )}
                 </button>
               </div>
             ))}

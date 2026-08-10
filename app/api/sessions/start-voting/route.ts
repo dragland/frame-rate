@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { atomicSessionUpdate, publishSessionUpdate } from '@/lib/redis';
 import { Session, StartVotingRequest, SessionResponse } from '../../../../lib/types';
 import { SESSION_CONFIG } from '../../../../lib/constants';
-import { canStartVoting } from '../../../../lib/voting';
+import { canStartVoting, lockNominations } from '../../../../lib/voting';
 import { isValidSessionCode, isValidUsername, normalizeSessionCode, normalizeUsername } from '../../../../lib/validation';
 
 export async function POST(request: NextRequest) {
@@ -51,14 +51,12 @@ export async function POST(request: NextRequest) {
           return null;
         }
 
-        // Lock the staged rankings by moving into the veto phase.
+        // Freeze the nomination pool and move into the veto phase
+        lockNominations(session);
         session.votingPhase = 'vetoing';
         session.isVotingOpen = true;
 
-        // Reset veto status and final rankings
         session.participants.forEach(p => {
-          p.hasVoted = false;
-          p.vetoedNominationId = undefined;
           p.finalMovies = undefined;
         });
 
