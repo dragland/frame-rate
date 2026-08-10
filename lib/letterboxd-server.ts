@@ -5,6 +5,7 @@
 
 import getRedisClient from './redis';
 import { CACHE_CONFIG } from './constants';
+import { fetchLetterboxdHtml } from './letterboxd-rating-server';
 
 export interface LetterboxdProfile {
   username: string;
@@ -30,9 +31,42 @@ const AVATAR_PATTERNS = [
 ];
 
 /**
- * User agent for Letterboxd requests
+ * Cloudflare challenges Letterboxd profile pages (film pages and RSS feeds
+ * stay open). When the profile page is unreachable, the RSS feed answers
+ * "does this user exist?" and links their latest activity page, which shows
+ * their avatar.
  */
-const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36';
+async function fetchProfileViaRss(
+  username: string
+): Promise<{ profilePicture: string | null } | 'not-found' | null> {
+  const rss = await fetchLetterboxdHtml(`/${username}/rss/`);
+
+  if (rss === 'not-found' || rss === null) {
+    return rss;
+  }
+
+  const itemLink = rss.html.match(/<item>[\s\S]*?<link>([^<]+)<\/link>/i)?.[1];
+  if (!itemLink) {
+    // Exists, but no activity to pull an avatar from
+    return { profilePicture: null };
+  }
+
+  const page = await fetchLetterboxdHtml(itemLink.replace('https://letterboxd.com', ''));
+  if (page === null || page === 'not-found') {
+    return { profilePicture: null };
+  }
+
+  // The activity page shows the author's avatar with alt="username"
+  const escaped = username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const avatarMatch =
+    page.html.match(new RegExp(`<img[^>]+src="([^"]*avatar[^"]*)"[^>]+alt="${escaped}"`, 'i')) ??
+    page.html.match(new RegExp(`<img[^>]+alt="${escaped}"[^>]+src="([^"]*avatar[^"]*)"`, 'i'));
+
+  // Ask the CDN for a larger crop than the inline 24/48px one
+  const profilePicture = avatarMatch?.[1]?.replace(/-0-\d+-0-\d+-crop/, '-0-220-0-220-crop') ?? null;
+
+  return { profilePicture };
+}
 
 /**
  * Extracts profile picture URL from Letterboxd HTML
@@ -76,7 +110,8 @@ export async function validateLetterboxdProfile(username: string): Promise<Lette
 
   const cleanUsername = username.trim().toLowerCase();
   const redis = getRedisClient();
-  const cacheKey = `letterboxd:profile:${cleanUsername}`;
+  // v2: v1 cached Cloudflare blocks as exists:false
+  const cacheKey = `letterboxd:profile:v2:${cleanUsername}`;
 
   try {
     // Check cache first
@@ -85,15 +120,21 @@ export async function validateLetterboxdProfile(username: string): Promise<Lette
       return JSON.parse(cached);
     }
 
-    const profileUrl = `https://letterboxd.com/${cleanUsername}/`;
+    const result = await fetchLetterboxdHtml(`/${cleanUsername}/`)
+      ?? await fetchProfileViaRss(cleanUsername);
 
-    const response = await fetch(profileUrl, {
-      headers: {
-        'User-Agent': USER_AGENT
-      }
-    });
+    // Blocked or unreachable — we don't actually know anything, so don't
+    // cache a wrong answer; the next attempt can retry
+    if (result === null) {
+      console.warn(`Letterboxd unreachable while validating profile: ${cleanUsername}`);
+      return {
+        username: cleanUsername,
+        profilePicture: null,
+        exists: false
+      };
+    }
 
-    const profile: LetterboxdProfile = !response.ok
+    const profile: LetterboxdProfile = result === 'not-found'
       ? {
           username: cleanUsername,
           profilePicture: null,
@@ -101,7 +142,9 @@ export async function validateLetterboxdProfile(username: string): Promise<Lette
         }
       : {
           username: cleanUsername,
-          profilePicture: extractProfilePicture(await response.text()),
+          profilePicture: 'profilePicture' in result
+            ? result.profilePicture
+            : extractProfilePicture(result.html),
           exists: true
         };
 

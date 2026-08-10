@@ -77,8 +77,14 @@ export function extractLetterboxdFilmUrl(html: string, fallbackUrl: string): str
   return filmUrl;
 }
 
-async function fetchDirectLetterboxdHtml(tmdbId: string): Promise<{ html: string; url: string } | null> {
-  const url = `${LETTERBOXD_BASE_URL}/tmdb/${tmdbId}/`;
+export type LetterboxdPage = { html: string; url: string };
+
+// 'not-found' = Letterboxd said the page doesn't exist (cacheable);
+// null = we couldn't get a real answer (Cloudflare block, network) — retryable
+export type LetterboxdFetchResult = LetterboxdPage | 'not-found' | null;
+
+async function fetchDirectLetterboxdHtml(path: string): Promise<LetterboxdFetchResult> {
+  const url = `${LETTERBOXD_BASE_URL}${path}`;
 
   try {
     const response = await fetch(url, {
@@ -86,6 +92,10 @@ async function fetchDirectLetterboxdHtml(tmdbId: string): Promise<{ html: string
       redirect: 'follow',
       signal: AbortSignal.timeout(10_000),
     });
+
+    if (response.status === 404) {
+      return 'not-found';
+    }
 
     if (!response.ok) {
       return null;
@@ -106,8 +116,8 @@ async function fetchDirectLetterboxdHtml(tmdbId: string): Promise<{ html: string
   }
 }
 
-async function fetchProxiedLetterboxdHtml(tmdbId: string): Promise<{ html: string; url: string } | null> {
-  const letterboxdUrl = `${LETTERBOXD_BASE_URL}/tmdb/${tmdbId}/`;
+async function fetchProxiedLetterboxdHtml(path: string): Promise<LetterboxdFetchResult> {
+  const letterboxdUrl = `${LETTERBOXD_BASE_URL}${path}`;
 
   try {
     const response = await fetch(`${JINA_READER_BASE_URL}${letterboxdUrl}`, {
@@ -117,6 +127,11 @@ async function fetchProxiedLetterboxdHtml(tmdbId: string): Promise<{ html: strin
       },
       signal: AbortSignal.timeout(15_000),
     });
+
+    // Jina forwards the upstream status for missing pages
+    if (response.status === 404 || response.status === 422) {
+      return 'not-found';
+    }
 
     if (!response.ok) {
       return null;
@@ -137,10 +152,23 @@ async function fetchProxiedLetterboxdHtml(tmdbId: string): Promise<{ html: strin
   }
 }
 
-export async function fetchLetterboxdRating(tmdbId: string): Promise<LetterboxdRatingData | null> {
-  const htmlResult = await fetchDirectLetterboxdHtml(tmdbId) ?? await fetchProxiedLetterboxdHtml(tmdbId);
+/**
+ * Fetch a Letterboxd page: direct first, Jina Reader proxy when Cloudflare
+ * blocks us. Shared by the rating and profile scrapers.
+ */
+export async function fetchLetterboxdHtml(path: string): Promise<LetterboxdFetchResult> {
+  const direct = await fetchDirectLetterboxdHtml(path);
+  if (direct !== null) {
+    return direct;
+  }
 
-  if (!htmlResult) {
+  return fetchProxiedLetterboxdHtml(path);
+}
+
+export async function fetchLetterboxdRating(tmdbId: string): Promise<LetterboxdRatingData | null> {
+  const htmlResult = await fetchLetterboxdHtml(`/tmdb/${tmdbId}/`);
+
+  if (!htmlResult || htmlResult === 'not-found') {
     return null;
   }
 
