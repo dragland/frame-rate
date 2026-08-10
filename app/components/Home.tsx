@@ -612,16 +612,22 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
                 </button>
               )}
             </div>
-            <div className="hidden md:flex items-center space-x-2 font-mono text-orange-400 flex-shrink-0">
+            <a
+              href={`https://letterboxd.com/${username}/`}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`${username} on Letterboxd`}
+              className="hidden md:flex items-center space-x-2 font-mono text-orange-400 hover:text-orange-300 transition-colors flex-shrink-0"
+            >
               {sessionData && (
-                <ProfilePicture 
+                <ProfilePicture
                   username={username}
                   profilePicture={sessionData.participants.find(p => p.username === username)?.profilePicture}
                   size="sm"
                 />
               )}
               <span>{username}</span>
-            </div>
+            </a>
           </div>
 
           <div>
@@ -769,8 +775,14 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
                     .filter(participant => participant.username !== username)
                     .map((participant) => (
                     <div key={participant.username} className="border-l-2 border-gray-700 pl-3">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <ProfilePicture 
+                      <a
+                        href={`https://letterboxd.com/${participant.username}/`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={`${participant.username} on Letterboxd`}
+                        className="flex items-center space-x-2 mb-2 w-fit hover:opacity-75 transition-opacity"
+                      >
+                        <ProfilePicture
                           username={participant.username}
                           profilePicture={participant.profilePicture}
                           size="sm"
@@ -778,7 +790,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
                         <h4 className="font-medium text-sm text-white">
                           {participant.username}
                         </h4>
-                      </div>
+                      </a>
                       {participant.movies.length > 0 ? (
                         <div className="space-y-1">
                           {participant.movies.slice(0, 2).map((movie, index) => (
