@@ -20,6 +20,18 @@ export interface LetterboxdWatchlist {
 // badging, so the result carries `truncated` rather than pretending otherwise.
 const MAX_WATCHLIST_PAGES = 20;
 
+// Aggregate budget for one pagination walk. Each page fetch can take up to
+// ~25s worst case (direct timeout + Jina fallback), so without a deadline a
+// single request could run for minutes and time out at the platform layer.
+// Hitting the deadline caches a truncated result — decorative data, and one
+// expensive walk per cache TTL is the ceiling we want.
+const WALK_BUDGET_MS = 20_000;
+
+// Coalesce concurrent walks for the same username: when a session assembles,
+// every client asks for every participant at once, and without this each
+// cache miss would trigger its own full pagination walk.
+const inFlightWatchlists = new Map<string, Promise<LetterboxdWatchlist>>();
+
 /**
  * Pull film slugs out of a watchlist page. Letterboxd poster markup carries
  * data-film-slug — bare ("the-matrix") in current markup, path-shaped
@@ -50,12 +62,25 @@ export function extractWatchlistSlugs(html: string): string[] {
  */
 export async function fetchLetterboxdWatchlist(username: string): Promise<LetterboxdWatchlist> {
   const cleanUsername = username.trim().toLowerCase();
-  const empty: LetterboxdWatchlist = { username: cleanUsername, slugs: [], truncated: false };
 
   if (!cleanUsername) {
-    return empty;
+    return { username: cleanUsername, slugs: [], truncated: false };
   }
 
+  const inFlight = inFlightWatchlists.get(cleanUsername);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  const walk = walkWatchlist(cleanUsername).finally(() => {
+    inFlightWatchlists.delete(cleanUsername);
+  });
+  inFlightWatchlists.set(cleanUsername, walk);
+  return walk;
+}
+
+async function walkWatchlist(cleanUsername: string): Promise<LetterboxdWatchlist> {
+  const empty: LetterboxdWatchlist = { username: cleanUsername, slugs: [], truncated: false };
   const redis = getRedisClient();
   const cacheKey = `letterboxd:watchlist:v1:${cleanUsername}`;
 
@@ -68,8 +93,15 @@ export async function fetchLetterboxdWatchlist(username: string): Promise<Letter
     const slugs = new Set<string>();
     let truncated = false;
     let blocked = false;
+    const startedAt = Date.now();
 
     for (let page = 1; page <= MAX_WATCHLIST_PAGES; page++) {
+      if (page > 1 && Date.now() - startedAt > WALK_BUDGET_MS) {
+        truncated = true;
+        console.warn(`Letterboxd watchlist walk for ${cleanUsername} hit time budget at page ${page}`);
+        break;
+      }
+
       const path = page === 1
         ? `/${cleanUsername}/watchlist/`
         : `/${cleanUsername}/watchlist/page/${page}/`;

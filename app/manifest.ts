@@ -5,11 +5,19 @@ export default function manifest(): MetadataRoute.Manifest {
     name: 'Frame Rate',
     short_name: 'Frame Rate',
     description: 'Choose movies for your group movie night',
+    // Stable app identity independent of start_url
+    id: '/',
     start_url: '/',
     display: 'standalone',
     background_color: '#111827',
     theme_color: '#111827',
     icons: [
+      {
+        src: '/icon-192.png',
+        sizes: '192x192',
+        type: 'image/png',
+        purpose: 'any',
+      },
       {
         src: '/icon.png',
         sizes: '512x512',

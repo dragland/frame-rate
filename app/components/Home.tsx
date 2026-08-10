@@ -868,7 +868,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
         <VotingModal
           session={sessionData}
           username={username}
-          watchlistSets={watchlistSets}
+          getWatchlistedBy={getWatchlistedBy}
           onClose={() => setShowVotingModal(false)}
           onSessionUpdate={handleSessionUpdate}
         />

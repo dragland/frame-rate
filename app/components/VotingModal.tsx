@@ -1,23 +1,23 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
-import { Session, SessionParticipant } from '../../lib/types';
+import { Session } from '../../lib/types';
 import { Movie, getImageUrl, formatRuntime } from '../../lib/tmdb';
 import { getEligibleVoters, getRemainingMovies, getRemainingNominations, hasFinalRanked, hasVetoed, vetoNomination, updateFinalMovies } from '../../lib/voting';
-import { filmSlugFromUrl } from '../../lib/letterboxd';
 import ProfilePicture from './ProfilePicture';
+import WatchlistAvatarStack, { WatchlistedByEntry } from './WatchlistAvatarStack';
 import Image from 'next/image';
 
 interface VotingModalProps {
   session: Session;
   username: string;
-  /** username → their Letterboxd watchlist film slugs (for veto-phase badges) */
-  watchlistSets?: Map<string, Set<string>>;
+  /** Participants who have a movie on their Letterboxd watchlist (owned by Home) */
+  getWatchlistedBy?: (movie: Movie) => WatchlistedByEntry[];
   onClose: () => void;
   onSessionUpdate: (session: Session) => void;
 }
 
-export default function VotingModal({ session, username, watchlistSets, onClose, onSessionUpdate }: VotingModalProps) {
+export default function VotingModal({ session, username, getWatchlistedBy, onClose, onSessionUpdate }: VotingModalProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [finalMovies, setFinalMovies] = useState<Movie[]>([]);
@@ -41,14 +41,6 @@ export default function VotingModal({ session, username, watchlistSets, onClose,
   // person everyone is waiting on
   const eligibleVoters = getEligibleVoters(session);
   const participantsByName = new Map(session.participants.map(p => [p.username, p]));
-
-  // Participants who have this movie on their Letterboxd watchlist —
-  // "2 of us want to see this" is exactly what a veto decision needs
-  const getWatchlistedBy = (movie: Movie): SessionParticipant[] => {
-    const slug = filmSlugFromUrl(movie.letterboxdRating?.filmUrl);
-    if (!slug || !watchlistSets) return [];
-    return session.participants.filter(p => watchlistSets.get(p.username)?.has(slug));
-  };
 
   React.useEffect(() => {
     return () => {
@@ -214,7 +206,7 @@ export default function VotingModal({ session, username, watchlistSets, onClose,
           </div>
           {/* The pool while waiting: kills struck through, no vetoer shown */}
           <p className="text-center text-xs text-gray-500 mb-3">
-            {remainingNominations.length} of {session.nominations.length} nominations still standing
+            {remainingNominations.length} of {session.nominations.length} nominations still standing — vetoes are anonymous
           </p>
           <div className="space-y-3 max-h-96 overflow-y-auto">
             {session.nominations.map((nomination) => {
@@ -231,17 +223,24 @@ export default function VotingModal({ session, username, watchlistSets, onClose,
                   }`}
                   onClick={() => {
                     if (!isVetoedNomination && nomination.letterboxdRating) {
-                      window.open(nomination.letterboxdRating.filmUrl, '_blank');
+                      window.open(nomination.letterboxdRating.filmUrl, '_blank', 'noopener,noreferrer');
                     }
                   }}
                 >
-                  <Image
-                    src={getImageUrl(nomination.poster_path)}
-                    alt={nomination.title}
-                    width={40}
-                    height={60}
-                    className={`rounded flex-shrink-0 ${isVetoedNomination ? 'grayscale' : ''}`}
-                  />
+                  {/* The skull sits on the (dead, grayscaled) poster — next to
+                      the nominator's avatar it reads as "this person killed it" */}
+                  <div className="relative flex-shrink-0">
+                    <Image
+                      src={getImageUrl(nomination.poster_path)}
+                      alt={nomination.title}
+                      width={40}
+                      height={60}
+                      className={`rounded ${isVetoedNomination ? 'grayscale' : ''}`}
+                    />
+                    {isVetoedNomination && (
+                      <span className="absolute inset-0 flex items-center justify-center text-lg">💀</span>
+                    )}
+                  </div>
                   <div className="flex-1 min-w-0">
                     <div className={`font-semibold text-sm truncate text-white ${isVetoedNomination ? 'line-through' : ''}`}>
                       {nomination.title}
@@ -251,13 +250,12 @@ export default function VotingModal({ session, username, watchlistSets, onClose,
                       {nomination.runtime && <span>• {formatRuntime(nomination.runtime)}</span>}
                     </div>
                   </div>
-                  <div className="flex-shrink-0 flex items-center space-x-1" title={`Nominated by ${nomination.nominatedBy}`}>
+                  <div className="flex-shrink-0" title={`Nominated by ${nomination.nominatedBy}`}>
                     <ProfilePicture
                       username={nomination.nominatedBy}
                       profilePicture={session.participants.find(p => p.username === nomination.nominatedBy)?.profilePicture}
                       size="sm"
                     />
-                    {isVetoedNomination && <span>💀</span>}
                   </div>
                 </div>
               );
@@ -268,7 +266,7 @@ export default function VotingModal({ session, username, watchlistSets, onClose,
         <div>
           <div className="space-y-3 max-h-96 overflow-y-auto">
             {remainingNominations.map((nomination) => {
-              const watchlistedBy = getWatchlistedBy(nomination);
+              const watchlistedBy = getWatchlistedBy?.(nomination) ?? [];
               return (
               <div
                 key={nomination.nominationId}
@@ -309,21 +307,8 @@ export default function VotingModal({ session, username, watchlistSets, onClose,
                     <span className="text-yellow-600 dark:text-yellow-400">{Math.round(nomination.vote_average * 10)}%</span>
                   </div>
                   {watchlistedBy.length > 0 && (
-                    <div
-                      className="flex items-center mt-1 space-x-1"
-                      title={`On ${watchlistedBy.map(p => p.username).join(', ')}'s watchlist`}
-                    >
-                      <div className="flex -space-x-2">
-                        {watchlistedBy.map(participant => (
-                          <ProfilePicture
-                            key={participant.username}
-                            username={participant.username}
-                            profilePicture={participant.profilePicture}
-                            size="sm"
-                            className="ring-1 ring-gray-800"
-                          />
-                        ))}
-                      </div>
+                    <div className="flex items-center mt-1 space-x-1">
+                      <WatchlistAvatarStack participants={watchlistedBy} ringClassName="ring-gray-800" />
                       <span className="text-xs text-gray-400">watchlisted</span>
                     </div>
                   )}
