@@ -56,14 +56,27 @@ async function fetchProfileViaRss(
     return { profilePicture: null };
   }
 
-  // The activity page shows the author's avatar with alt="username"
-  const escaped = username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const avatarMatch =
-    page.html.match(new RegExp(`<img[^>]+src="([^"]*avatar[^"]*)"[^>]+alt="${escaped}"`, 'i')) ??
-    page.html.match(new RegExp(`<img[^>]+alt="${escaped}"[^>]+src="([^"]*avatar[^"]*)"`, 'i'));
+  // The activity page renders avatars with alt set to the DISPLAY name (which
+  // can differ from the username), and includes other users' avatars further
+  // down (likers, commenters). The RSS <title> carries the same display name,
+  // so match on that; fall back to the page's first avatar (the author's).
+  const displayName = rss.html.match(/<title>Letterboxd - ([^<]+)<\/title>/i)?.[1]?.trim();
+
+  const findAvatarByAlt = (alt: string): string | undefined => {
+    const escaped = alt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return (
+      page.html.match(new RegExp(`<img[^>]+src="([^"]*avatar[^"]*)"[^>]+alt="${escaped}"`, 'i')) ??
+      page.html.match(new RegExp(`<img[^>]+alt="${escaped}"[^>]+src="([^"]*avatar[^"]*)"`, 'i'))
+    )?.[1];
+  };
+
+  const avatarUrl =
+    (displayName && findAvatarByAlt(displayName)) ||
+    findAvatarByAlt(username) ||
+    page.html.match(/<img[^>]+src="([^"]*\/avatar\/[^"]*)"/i)?.[1];
 
   // Ask the CDN for a larger crop than the inline 24/48px one
-  const profilePicture = avatarMatch?.[1]?.replace(/-0-\d+-0-\d+-crop/, '-0-220-0-220-crop') ?? null;
+  const profilePicture = avatarUrl?.replace(/-0-\d+-0-\d+-crop/, '-0-220-0-220-crop') ?? null;
 
   return { profilePicture };
 }
