@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import { Movie, getImageUrl, formatRuntime } from '@/lib/tmdb';
+import WatchlistAvatarStack, { WatchlistedByEntry } from './WatchlistAvatarStack';
 
 /** Character threshold for showing "Show more" button on descriptions */
 const DESCRIPTION_TRUNCATE_LENGTH = 150;
@@ -14,9 +15,11 @@ interface MovieCardProps {
   isExpanded: boolean;
   onToggleDescription: () => void;
   disabled?: boolean;
+  /** Participants who have this film on their Letterboxd watchlist */
+  watchlistedBy?: WatchlistedByEntry[];
 }
 
-export default function MovieCard({ movie, onAdd, onRemove, isInList, isExpanded, onToggleDescription, disabled = false }: MovieCardProps) {
+export default function MovieCard({ movie, onAdd, onRemove, isInList, isExpanded, onToggleDescription, disabled = false, watchlistedBy = [] }: MovieCardProps) {
   const year = movie.release_date?.split('-')[0];
 
   return (
@@ -29,6 +32,13 @@ export default function MovieCard({ movie, onAdd, onRemove, isInList, isExpanded
           height={750}
           className="w-full h-full object-contain"
         />
+        {/* Top-left: the bottom corners collide at the md breakpoint, where
+            three-column cards are only ~100px wide next to the rating pill */}
+        {watchlistedBy.length > 0 && (
+          <div className="absolute top-2 left-2 bg-black/60 rounded-full px-1.5 py-1">
+            <WatchlistAvatarStack participants={watchlistedBy} ringClassName="ring-black/60" />
+          </div>
+        )}
         <div className="absolute bottom-2 right-2">
           {movie.letterboxdRating ? (
             <a

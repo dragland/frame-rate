@@ -5,16 +5,19 @@ import { Session } from '../../lib/types';
 import { Movie, getImageUrl, formatRuntime } from '../../lib/tmdb';
 import { getEligibleVoters, getRemainingMovies, getRemainingNominations, hasFinalRanked, hasVetoed, vetoNomination, updateFinalMovies } from '../../lib/voting';
 import ProfilePicture from './ProfilePicture';
+import WatchlistAvatarStack, { WatchlistedByEntry } from './WatchlistAvatarStack';
 import Image from 'next/image';
 
 interface VotingModalProps {
   session: Session;
   username: string;
+  /** Participants who have a movie on their Letterboxd watchlist (owned by Home) */
+  getWatchlistedBy?: (movie: Movie) => WatchlistedByEntry[];
   onClose: () => void;
   onSessionUpdate: (session: Session) => void;
 }
 
-export default function VotingModal({ session, username, onClose, onSessionUpdate }: VotingModalProps) {
+export default function VotingModal({ session, username, getWatchlistedBy, onClose, onSessionUpdate }: VotingModalProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [finalMovies, setFinalMovies] = useState<Movie[]>([]);
@@ -147,7 +150,7 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
         </h3>
         {!hasUserVetoed && (
           <p className="text-gray-400 text-sm">
-            Tap Veto, then Confirm to eliminate one film — no undo
+            Tap Veto, then Confirm to eliminate one film — anonymous, no undo
           </p>
         )}
         
@@ -197,13 +200,75 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
       </div>
 
       {hasUserVetoed ? (
-        <div className="text-center py-8">
-          <div className="text-green-600 dark:text-green-400">✓ Vetoed &quot;{userVetoedNomination?.title || 'Unknown'}&quot;</div>
+        <div>
+          <div className="text-center py-4 text-green-600 dark:text-green-400">
+            ✓ Vetoed &quot;{userVetoedNomination?.title || 'Unknown'}&quot;
+          </div>
+          {/* The pool while waiting: kills struck through, no vetoer shown */}
+          <p className="text-center text-xs text-gray-500 mb-3">
+            {remainingNominations.length} of {session.nominations.length} nominations still standing — vetoes are anonymous
+          </p>
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+            {session.nominations.map((nomination) => {
+              const isVetoedNomination = !remainingNominations.some(
+                remaining => remaining.nominationId === nomination.nominationId
+              );
+              return (
+                <div
+                  key={nomination.nominationId}
+                  className={`flex items-center space-x-3 p-3 bg-gray-800 rounded-lg transition-all ${
+                    isVetoedNomination
+                      ? 'opacity-40'
+                      : nomination.letterboxdRating ? 'hover:bg-gray-700 cursor-pointer' : ''
+                  }`}
+                  onClick={() => {
+                    if (!isVetoedNomination && nomination.letterboxdRating) {
+                      window.open(nomination.letterboxdRating.filmUrl, '_blank', 'noopener,noreferrer');
+                    }
+                  }}
+                >
+                  {/* The skull sits on the (dead, grayscaled) poster — next to
+                      the nominator's avatar it reads as "this person killed it" */}
+                  <div className="relative flex-shrink-0">
+                    <Image
+                      src={getImageUrl(nomination.poster_path)}
+                      alt={nomination.title}
+                      width={40}
+                      height={60}
+                      className={`rounded ${isVetoedNomination ? 'grayscale' : ''}`}
+                    />
+                    {isVetoedNomination && (
+                      <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-lg">💀</span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={`font-semibold text-sm truncate text-white ${isVetoedNomination ? 'line-through' : ''}`}>
+                      {isVetoedNomination && <span className="sr-only">Vetoed: </span>}
+                      {nomination.title}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 space-x-2">
+                      {nomination.release_date?.split('-')[0] && <span>{nomination.release_date.split('-')[0]}</span>}
+                      {nomination.runtime && <span>• {formatRuntime(nomination.runtime)}</span>}
+                    </div>
+                  </div>
+                  <div className="flex-shrink-0" title={`Nominated by ${nomination.nominatedBy}`}>
+                    <ProfilePicture
+                      username={nomination.nominatedBy}
+                      profilePicture={session.participants.find(p => p.username === nomination.nominatedBy)?.profilePicture}
+                      size="sm"
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       ) : (
         <div>
           <div className="space-y-3 max-h-96 overflow-y-auto">
-            {remainingNominations.map((nomination) => (
+            {remainingNominations.map((nomination) => {
+              const watchlistedBy = getWatchlistedBy?.(nomination) ?? [];
+              return (
               <div
                 key={nomination.nominationId}
                 className={`flex items-center space-x-3 p-3 bg-gray-800 rounded-lg transition-all ${nomination.letterboxdRating ? 'hover:bg-gray-700 cursor-pointer' : ''} ${armedVetoId === nomination.nominationId ? 'ring-2 ring-red-500' : ''}`}
@@ -242,6 +307,12 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
                     )}
                     <span className="text-yellow-600 dark:text-yellow-400">{Math.round(nomination.vote_average * 10)}%</span>
                   </div>
+                  {watchlistedBy.length > 0 && (
+                    <div className="flex items-center mt-1 space-x-1">
+                      <WatchlistAvatarStack participants={watchlistedBy} ringClassName="ring-gray-800" />
+                      <span className="text-xs text-gray-400">watchlisted</span>
+                    </div>
+                  )}
                 </div>
                 <button
                   onClick={(e) => {
@@ -272,7 +343,8 @@ export default function VotingModal({ session, username, onClose, onSessionUpdat
                   )}
                 </button>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

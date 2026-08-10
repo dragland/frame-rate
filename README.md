@@ -16,6 +16,7 @@ Movie night voting app with group session ranked choice
 - Sign in with `Letterboxd` & create watch party
 - Friends join session with 4-letter code
 - Everyone nominates 2+ films with TMDB search
+- Badges show whose Letterboxd watchlist already has a film
 - Nominations are locked in & everyone casts 1 veto
 - Final nominations are ranked again to pick the winner
 
@@ -60,7 +61,7 @@ app/
 ├── api/sessions/      # Session management APIs
 ├── api/search/        # TMDB movie search
 ├── api/movie/         # TMDB movie details
-├── api/letterboxd/    # Letterboxd rating + profile lookups
+├── api/letterboxd/    # Letterboxd rating + profile + watchlist lookups
 └── [code]/            # Dynamic session pages
 lib/
 ├── voting.ts          # Ranked choice voting algo
@@ -74,6 +75,7 @@ lib/
 
 - **Framework**: Next.js 16 + React 19 + TypeScript
 - **Styling**: Tailwind CSS  
+- **PWA**: Installable (manifest, iOS/Android home-screen icons)
 - **Session Storage**: Redis (prod) / In-memory (dev)
 - **APIs**: TMDB + Letterboxd scraping
 - **Deployment**: Render (or any Node.js host)

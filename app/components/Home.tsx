@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { searchMovies, Movie, getMovieDetails, formatRuntime } from '@/lib/tmdb';
-import { getLetterboxdRating } from '@/lib/letterboxd';
+import { getLetterboxdRating, getLetterboxdWatchlist, filmSlugFromUrl } from '@/lib/letterboxd';
 import { createSession, joinSession, updateMovies, leaveSession, debounce, DebouncedFunction } from '@/lib/session';
 import { Session } from '@/lib/types';
 import { canStartVoting, startVoting } from '@/lib/voting';
@@ -12,8 +12,6 @@ import ProfilePicture from './ProfilePicture';
 import BackgroundInstructions from './BackgroundInstructions';
 import MovieCard from './MovieCard';
 import DraggableMovieItem from './DraggableMovieItem';
-
-type SessionMode = 'solo' | 'host' | 'guest';
 
 interface HomeProps {
   initialSessionData?: Session;
@@ -24,13 +22,7 @@ interface HomeProps {
 export default function Home({ initialSessionData, initialUsername, initialSessionCode }: HomeProps = {}) {
   const searchParams = useSearchParams();
   const [username, setUsername] = useState(initialUsername || '');
-  const [isLoggedIn, setIsLoggedIn] = useState(!!initialSessionData);
-  const [sessionMode, setSessionMode] = useState<SessionMode>(
-    initialSessionData 
-      ? (initialSessionData.host === initialUsername ? 'host' : 'guest')
-      : 'solo'
-  );
-  const [sessionCode, setSessionCode] = useState(initialSessionCode || '');
+  const sessionCode = initialSessionCode || '';
   const [joinCode, setJoinCode] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Movie[]>([]);
@@ -53,6 +45,9 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
   const [showVotingModal, setShowVotingModal] = useState(false);
   const myMoviesRef = useRef(myMovies);
   const hasPendingMovieSaveRef = useRef(false);
+  // username → their Letterboxd watchlist film slugs
+  const [watchlists, setWatchlists] = useState<Record<string, string[]>>({});
+  const requestedWatchlistsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     myMoviesRef.current = myMovies;
@@ -214,7 +209,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
   const activeSessionCode = sessionData?.code;
 
   const saveMoviesToSession = useCallback(async (movies: Movie[]) => {
-    if (activeSessionCode && sessionMode !== 'solo') {
+    if (activeSessionCode) {
       try {
         const response = await updateMovies(activeSessionCode, username, movies);
         if (!response.success) {
@@ -229,7 +224,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
         hasPendingMovieSaveRef.current = false;
       }
     }
-  }, [activeSessionCode, sessionMode, username]);
+  }, [activeSessionCode, username]);
 
   // The debounced saver owns a timer, so an effect owns its lifecycle:
   // recreated when the save callback changes, cancelled on cleanup
@@ -245,7 +240,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
   }, [saveMoviesToSession]);
 
   const handleVoteClick = async () => {
-    if (sessionData && sessionMode !== 'solo') {
+    if (sessionData) {
       if (sessionData.votingPhase === 'ranking') {
         setIsLoading(true);
         setSessionError('');
@@ -284,8 +279,8 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
     setSessionData(updatedSession);
   };
 
-  const canStartSessionVoting = sessionData && sessionMode !== 'solo' ? canStartVoting(sessionData) : false;
-  const canUseVotingButton = sessionData && sessionMode !== 'solo'
+  const canStartSessionVoting = sessionData ? canStartVoting(sessionData) : false;
+  const canUseVotingButton = sessionData
     ? (sessionData.votingPhase === 'ranking' ? canStartSessionVoting : true)
     : false;
   const isVotingLocked = sessionData ? sessionData.votingPhase !== 'ranking' : false;
@@ -295,7 +290,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
 
     if (!myMovies.find(m => m.id === movie.id)) {
       const updatedMovies = [...myMovies, movie];
-      hasPendingMovieSaveRef.current = sessionData !== null && sessionMode !== 'solo';
+      hasPendingMovieSaveRef.current = sessionData !== null;
       setMyMovies(updatedMovies);
       debouncedUpdateSessionRef.current?.(updatedMovies);
     }
@@ -305,7 +300,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
     if (isVotingLocked) return;
 
     const updatedMovies = myMovies.filter(m => m.id !== movieId);
-    hasPendingMovieSaveRef.current = sessionData !== null && sessionMode !== 'solo';
+    hasPendingMovieSaveRef.current = sessionData !== null;
     setMyMovies(updatedMovies);
     debouncedUpdateSessionRef.current?.(updatedMovies);
   };
@@ -316,7 +311,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
     const updatedMovies = [...myMovies];
     const [removed] = updatedMovies.splice(fromIndex, 1);
     updatedMovies.splice(toIndex, 0, removed);
-    hasPendingMovieSaveRef.current = sessionData !== null && sessionMode !== 'solo';
+    hasPendingMovieSaveRef.current = sessionData !== null;
     setMyMovies(updatedMovies);
     debouncedUpdateSessionRef.current?.(updatedMovies);
   };
@@ -338,7 +333,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
   };
 
   const handleExitSession = async () => {
-    if (sessionData && sessionMode !== 'solo') {
+    if (sessionData) {
       try {
         await leaveSession(sessionData.code, username);
       } catch (error) {
@@ -359,7 +354,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
 
   // SSE: Real-time session updates via Redis pub/sub
   useEffect(() => {
-    if (!sessionCode || sessionMode === 'solo') return;
+    if (!sessionCode) return;
 
     const eventSource = new EventSource(`/api/sessions/${sessionCode}/stream`);
 
@@ -393,7 +388,36 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
     };
 
     return () => eventSource.close();
-  }, [sessionCode, sessionMode, username]);
+  }, [sessionCode, username]);
+
+  // Fetch each participant's watchlist once; badges appear as results land.
+  // Failures resolve to [] and aren't retried — this is decoration, not state.
+  useEffect(() => {
+    if (!sessionData) return;
+
+    sessionData.participants.forEach(participant => {
+      if (requestedWatchlistsRef.current.has(participant.username)) return;
+      requestedWatchlistsRef.current.add(participant.username);
+
+      getLetterboxdWatchlist(participant.username, sessionData.code).then(slugs => {
+        if (slugs.length > 0) {
+          setWatchlists(prev => ({ ...prev, [participant.username]: slugs }));
+        }
+      });
+    });
+  }, [sessionData]);
+
+  const watchlistSets = useMemo(
+    () => new Map(Object.entries(watchlists).map(([user, slugs]) => [user, new Set(slugs)])),
+    [watchlists]
+  );
+
+  // Participants who have this movie on their Letterboxd watchlist
+  const getWatchlistedBy = useCallback((movie: Movie) => {
+    const slug = filmSlugFromUrl(movie.letterboxdRating?.filmUrl);
+    if (!slug || !sessionData) return [];
+    return sessionData.participants.filter(p => watchlistSets.get(p.username)?.has(slug));
+  }, [sessionData, watchlistSets]);
 
   const votingPhase = sessionData?.votingPhase;
   const autoOpenedPhaseRef = useRef<string | null>(null);
@@ -401,7 +425,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
   // Auto-open the voting modal once per phase transition; the user can
   // dismiss it and reopen via the sidebar button without it snapping back
   useEffect(() => {
-    if (!votingPhase || sessionMode === 'solo') return;
+    if (!votingPhase) return;
 
     const votingPhases = ['vetoing', 'finalRanking', 'results'];
 
@@ -409,7 +433,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
       autoOpenedPhaseRef.current = votingPhase;
       setShowVotingModal(true);
     }
-  }, [votingPhase, sessionMode]);
+  }, [votingPhase]);
 
   const [isFromJoinUrl, setIsFromJoinUrl] = useState(false);
   const [joinNotice, setJoinNotice] = useState('');
@@ -439,7 +463,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
     }
   }, [searchParams]);
 
-  if (!isLoggedIn) {
+  if (!initialSessionData) {
     return (
       <main className="h-screen h-dvh flex items-start sm:items-center justify-center p-4 sm:p-8 bg-gradient-to-br from-black to-gray-900 overflow-hidden overscroll-none">
         <div className="max-w-md w-full flex flex-col justify-start sm:justify-center pt-4 sm:pt-0 pb-4 sm:pb-0 min-h-0 max-h-full overflow-hidden">
@@ -549,8 +573,8 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
                 size="sm"
               />
             )}
-            <span>🍿 {sessionData && sessionMode !== 'solo' ? (sessionData.participants.length > 1 ? sessionData.participants.length : '') : myMovies.length}</span>
-            {sessionCode && sessionMode !== 'solo' && (
+            <span>🍿 {sessionData && sessionData.participants.length > 1 ? sessionData.participants.length : ''}</span>
+            {sessionCode && (
               <span className="text-xs font-mono bg-green-600 px-1 rounded">
                 {sessionCode}
               </span>
@@ -569,7 +593,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
               >
                 🎞️ Frame Rate
               </button>
-              {sessionCode && sessionMode !== 'solo' && (
+              {sessionCode && (
                 <button
                   onClick={copySessionCode}
                   className={`hidden sm:flex items-center space-x-2 px-3 py-1 rounded-full transition-colors cursor-pointer flex-shrink-0 ${
@@ -588,16 +612,22 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
                 </button>
               )}
             </div>
-            <div className="hidden md:flex items-center space-x-2 font-mono text-orange-400 flex-shrink-0">
+            <a
+              href={`https://letterboxd.com/${username}/`}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`${username} on Letterboxd`}
+              className="hidden md:flex items-center space-x-2 font-mono text-orange-400 hover:text-orange-300 hover:underline transition-colors flex-shrink-0"
+            >
               {sessionData && (
-                <ProfilePicture 
+                <ProfilePicture
                   username={username}
                   profilePicture={sessionData.participants.find(p => p.username === username)?.profilePicture}
                   size="sm"
                 />
               )}
               <span>{username}</span>
-            </div>
+            </a>
           </div>
 
           <div>
@@ -650,6 +680,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
                 isExpanded={expandedDescriptions.has(movie.id)}
                 onToggleDescription={() => toggleDescription(movie.id)}
                 disabled={isVotingLocked}
+                watchlistedBy={getWatchlistedBy(movie)}
               />
             ))}
             
@@ -685,7 +716,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
         <div className="p-4 sm:p-6 h-full overflow-y-auto flex flex-col">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-white">
-              🍿 Movie Night {sessionData && sessionMode !== 'solo' ? (sessionData.participants.length > 1 ? `(${sessionData.participants.length})` : '') : `(${myMovies.length})`}
+              🍿 Movie Night {sessionData && sessionData.participants.length > 1 ? `(${sessionData.participants.length})` : ''}
             </h2>
             <button
               onClick={() => setSidebarOpen(false)}
@@ -695,7 +726,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
             </button>
           </div>
 
-          {sessionCode && sessionMode !== 'solo' && (
+          {sessionCode && (
             <div className="md:hidden mb-4">
               <button
                 onClick={copySessionCode}
@@ -737,15 +768,21 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
               )}
             </div>
 
-            {sessionData && sessionMode !== 'solo' && (
+            {sessionData && (
               <div className="mb-6">
                 <div className="space-y-4">
                   {sessionData.participants
                     .filter(participant => participant.username !== username)
                     .map((participant) => (
                     <div key={participant.username} className="border-l-2 border-gray-700 pl-3">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <ProfilePicture 
+                      <a
+                        href={`https://letterboxd.com/${participant.username}/`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={`${participant.username} on Letterboxd`}
+                        className="flex items-center space-x-2 mb-1 w-fit py-1 hover:text-orange-300 hover:underline transition-colors"
+                      >
+                        <ProfilePicture
                           username={participant.username}
                           profilePicture={participant.profilePicture}
                           size="sm"
@@ -753,7 +790,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
                         <h4 className="font-medium text-sm text-white">
                           {participant.username}
                         </h4>
-                      </div>
+                      </a>
                       {participant.movies.length > 0 ? (
                         <div className="space-y-1">
                           {participant.movies.slice(0, 2).map((movie, index) => (
@@ -804,7 +841,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
               </div>
             )}
             
-            {sessionData && sessionMode !== 'solo' && (sessionData.participants.length >= 2 || sessionData.votingPhase !== 'ranking') && (
+            {sessionData && (sessionData.participants.length >= 2 || sessionData.votingPhase !== 'ranking') && (
               <div>
                 {sessionError && (
                   <p className="text-red-400 text-sm mb-2 text-center">{sessionError}</p>
@@ -843,6 +880,7 @@ export default function Home({ initialSessionData, initialUsername, initialSessi
         <VotingModal
           session={sessionData}
           username={username}
+          getWatchlistedBy={getWatchlistedBy}
           onClose={() => setShowVotingModal(false)}
           onSessionUpdate={handleSessionUpdate}
         />
