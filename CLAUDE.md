@@ -33,6 +33,7 @@ The `ranking` phase is the staging phase where each participant drags their nomi
 - **Voting ties**: Random coin flip + UI feedback
 - **Letterboxd profile scraping** (`lib/letterboxd-server.ts`): direct fetch → RSS + activity-page fallback (avatar matched by display name, which can differ from username); blocked lookups are never cached; cache key `letterboxd:profile:v2:*` (v1 wrongly cached Cloudflare blocks as `exists:false`)
 - **Letterboxd rating scraping** (`lib/letterboxd-rating-server.ts`): Direct fetch with Jina Reader proxy fallback on Cloudflare; parses `twitter:data2` meta with JSON-LD fallback
+- **Letterboxd watchlist scraping** (`lib/letterboxd-watchlist-server.ts`): walks paginated watchlist pages for film slugs (cache `letterboxd:watchlist:v1:*`); a Cloudflare block mid-walk returns partial results uncached. Movies are matched client-side via the slug in `letterboxdRating.filmUrl` (`filmSlugFromUrl`) — no extra per-movie requests; badges are decorative and never block
 
 <!-- BEGIN:nextjs-agent-rules -->
 

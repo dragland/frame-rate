@@ -117,10 +117,6 @@ export const calculateRankedChoiceWinner = (session: Session): VotingResults => 
     throw new Error('Cannot calculate winner with no remaining movies');
   }
 
-  console.log(`🗳️ Starting ranked choice voting:`);
-  console.log(`📊 Ballots: ${ballots.length}, Remaining: ${remainingMovies.length}`);
-  console.log(`🎬 Remaining movies:`, remainingMovies.map(m => m.title));
-
   while (remainingMovies.length > 1) {
     const votes: { [movieId: number]: number } = {};
 
@@ -165,10 +161,8 @@ export const calculateRankedChoiceWinner = (session: Session): VotingResults => 
     // Handle ties by random selection
     let eliminated: Movie;
     if (moviesWithMinVotes.length > 1) {
-      console.log(`⚖️ Tie for elimination between: ${moviesWithMinVotes.map(m => m.title).join(', ')} (${minVotes} votes each)`);
       const randomIndex = Math.floor(Math.random() * moviesWithMinVotes.length);
       eliminated = moviesWithMinVotes[randomIndex];
-      console.log(`🎲 Random elimination: ${eliminated.title}`);
       eliminationTieBreaking = true;
     } else {
       eliminated = moviesWithMinVotes[0];
@@ -180,64 +174,16 @@ export const calculateRankedChoiceWinner = (session: Session): VotingResults => 
     round++;
   }
 
-  // Handle final tie-breaking if needed
-  if (remainingMovies.length === 1) {
-    return {
-      winner: remainingMovies[0],
-      eliminatedMovies,
-      rounds,
-      tieBreaking: eliminationTieBreaking ? {
-        isTieBreaker: true,
-        tiedMovies: [],
-        message: `Some eliminations required coin flips 🪙`
-      } : undefined
-    };
-  }
-  
-  // If we somehow have multiple movies left (shouldn't happen with proper RCV), 
-  // pick winner based on final vote counts
-  const finalVotes: { [movieId: number]: number } = {};
-  remainingMovies.forEach(movie => {
-    finalVotes[movie.id] = 0;
-  });
-  
-  ballots.forEach(ballot => {
-    const firstChoice = ballot.find(movie =>
-      remainingMovies.some(rm => rm.id === movie.id)
-    );
-    if (firstChoice) {
-      finalVotes[firstChoice.id]++;
-    }
-  });
-  
-  const maxVotes = Math.max(...Object.values(finalVotes));
-  const winnersWithMaxVotes = remainingMovies.filter(movie => finalVotes[movie.id] === maxVotes);
-  
-  let finalWinner: Movie;
-  let tieBreaking = undefined;
-  
-  if (winnersWithMaxVotes.length > 1) {
-    console.log(`🎲 Final tie between: ${winnersWithMaxVotes.map(m => m.title).join(', ')} (${maxVotes} votes each)`);
-    const randomIndex = Math.floor(Math.random() * winnersWithMaxVotes.length);
-    finalWinner = winnersWithMaxVotes[randomIndex];
-    console.log(`🏆 Random winner: ${finalWinner.title}`);
-    
-    tieBreaking = {
-      isTieBreaker: true,
-      tiedMovies: winnersWithMaxVotes.map(m => m.title),
-      message: `It was a tie! Making an executive decision with a coin flip 🪙`
-    };
-  } else {
-    finalWinner = winnersWithMaxVotes[0];
-  }
-  
-  rounds.push({ round, votes: finalVotes });
-  
+  // The loop only exits once a single movie remains (an empty pool throws above)
   return {
-    winner: finalWinner,
+    winner: remainingMovies[0],
     eliminatedMovies,
     rounds,
-    tieBreaking
+    tieBreaking: eliminationTieBreaking ? {
+      isTieBreaker: true,
+      tiedMovies: [],
+      message: `Some eliminations required coin flips 🪙`
+    } : undefined
   };
 };
 

@@ -2,9 +2,18 @@
 
 import Image from 'next/image';
 import { Movie, getImageUrl, formatRuntime } from '@/lib/tmdb';
+import ProfilePicture from './ProfilePicture';
 
 /** Character threshold for showing "Show more" button on descriptions */
 const DESCRIPTION_TRUNCATE_LENGTH = 150;
+
+/** Max avatars in the watchlist stack before collapsing into "+N" */
+const MAX_WATCHLIST_AVATARS = 3;
+
+export interface WatchlistedByEntry {
+  username: string;
+  profilePicture?: string | null;
+}
 
 interface MovieCardProps {
   movie: Movie;
@@ -14,9 +23,11 @@ interface MovieCardProps {
   isExpanded: boolean;
   onToggleDescription: () => void;
   disabled?: boolean;
+  /** Participants who have this film on their Letterboxd watchlist */
+  watchlistedBy?: WatchlistedByEntry[];
 }
 
-export default function MovieCard({ movie, onAdd, onRemove, isInList, isExpanded, onToggleDescription, disabled = false }: MovieCardProps) {
+export default function MovieCard({ movie, onAdd, onRemove, isInList, isExpanded, onToggleDescription, disabled = false, watchlistedBy = [] }: MovieCardProps) {
   const year = movie.release_date?.split('-')[0];
 
   return (
@@ -29,6 +40,29 @@ export default function MovieCard({ movie, onAdd, onRemove, isInList, isExpanded
           height={750}
           className="w-full h-full object-contain"
         />
+        {watchlistedBy.length > 0 && (
+          <div
+            className="absolute bottom-2 left-2 flex items-center bg-black/60 rounded-full px-1.5 py-1"
+            title={`On ${watchlistedBy.map(p => p.username).join(', ')}'s watchlist`}
+          >
+            <div className="flex -space-x-2">
+              {watchlistedBy.slice(0, MAX_WATCHLIST_AVATARS).map(participant => (
+                <ProfilePicture
+                  key={participant.username}
+                  username={participant.username}
+                  profilePicture={participant.profilePicture}
+                  size="sm"
+                  className="ring-1 ring-black/60"
+                />
+              ))}
+            </div>
+            {watchlistedBy.length > MAX_WATCHLIST_AVATARS && (
+              <span className="text-white text-xs ml-1">
+                +{watchlistedBy.length - MAX_WATCHLIST_AVATARS}
+              </span>
+            )}
+          </div>
+        )}
         <div className="absolute bottom-2 right-2">
           {movie.letterboxdRating ? (
             <a

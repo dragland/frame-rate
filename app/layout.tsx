@@ -7,6 +7,11 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata = {
   title: 'Frame Rate',
   description: 'Choose movies for your group movie night',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Frame Rate',
+  },
 }
 
 export const viewport = {
@@ -15,6 +20,7 @@ export const viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: 'cover',
+  themeColor: '#111827',
 }
 
 export default function RootLayout({
