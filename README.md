@@ -22,7 +22,7 @@ Movie night voting app with group session ranked choice
 
 ## Quick Start
 
-**Prerequisites**: [TMDB API key](https://www.themoviedb.org/settings/api)
+**Prerequisites**: Node.js from [`.node-version`](.node-version), npm, and a [TMDB API key](https://www.themoviedb.org/settings/api)
 
 1. **Setup**:
    ```bash
@@ -41,6 +41,9 @@ Movie night voting app with group session ranked choice
 **Storage**: Development uses in-memory sessions (reset on restart). Production requires Redis.
 
 ## Production
+
+- Render: remove `NODE_VERSION` or match [`.node-version`](.node-version); the environment override wins. Supported versions: [`engines.node`](package.json).
+- After runtime/dependency updates, rebuild and redeploy to refresh Render's system CA store. Verify Node's version in the build logs.
 
 **Redis is required for production** (group sessions are stored in Redis):
 
