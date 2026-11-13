@@ -559,10 +559,7 @@ export default function VotingModal({ session, username, getWatchlistedBy, onClo
           </div>
         )}
 
-        <a
-          href="plex://"
-          className="mt-4 w-full bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold inline-block flex items-center justify-center space-x-2"
-        >
+        <div className="mt-4 flex items-center justify-center space-x-2 text-green-400 font-semibold">
           <div className="flex items-center space-x-1">
             {session.participants.map((participant, index) => (
               <div
@@ -579,7 +576,7 @@ export default function VotingModal({ session, username, getWatchlistedBy, onClo
             ))}
           </div>
           <span>Show Time!</span>
-        </a>
+        </div>
       </div>
     );
   };
